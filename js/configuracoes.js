@@ -302,7 +302,7 @@ function renderSettingsView() {
           <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;padding-top:0.9rem;border-top:1px solid var(--border);">
             <div>
               <strong style="font-size:0.85rem;">Versão instalada:</strong>
-              <span style="font-size:0.82rem;color:var(--text-muted);">${window.AppUpdater ? window.AppUpdater.APP_VERSION.name + ' (code ' + window.AppUpdater.APP_VERSION.code + ')' : '0.0.6 (code 6)'}</span>
+              <span style="font-size:0.82rem;color:var(--text-muted);">${window.AppUpdater ? window.AppUpdater.APP_VERSION.name + ' (code ' + window.AppUpdater.APP_VERSION.code + ')' : '0.0.7 (code 7)'}</span>
             </div>
             <button type="button" id="btn-check-updates" class="btn btn-outline" onclick="window.checkAppUpdates()"><i class="ph ph-magnifying-glass" aria-hidden="true"></i> Verificar atualizações agora</button>
           </div>
