@@ -60,6 +60,44 @@
     } finally { clearTimeout(timer); }
   }
 
+  // ---------------------------------------------------------------
+  // Modo gratuito: Google Apps Script (web app na conta Google)
+  // Roda sem Cloud Functions nem OAuth — o script usa a conta do dono.
+  // ---------------------------------------------------------------
+  function appsScriptUrl(values) {
+    return ((values && values.appsScriptUrl) || '').trim();
+  }
+
+  async function callAppsScript(action, data, timeoutMs) {
+    const values = await driveValues();
+    const url = appsScriptUrl(values);
+    if (!url) {
+      const err = new Error('Web app do Google Apps Script não configurado.');
+      err.code = 'BACKEND_NOT_READY';
+      throw err;
+    }
+    const payload = Object.assign({ token: (values.appsScriptToken || '').trim(), action }, data || {});
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs || 90000) : null;
+    try {
+      const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload), signal: controller ? controller.signal : undefined });
+      const text = await res.text();
+      let parsed = null;
+      try { parsed = JSON.parse(text); } catch (e) {}
+      if (!res.ok || (parsed && parsed.error)) {
+        const err = new Error((parsed && parsed.error) || ('HTTP ' + res.status));
+        err.code = 'APPS_SCRIPT_ERROR';
+        throw err;
+      }
+      return parsed || { ok: true };
+    } finally { if (timer) clearTimeout(timer); }
+  }
+
+  function isBackendMissingError(err) {
+    const code = err && (err.code || err.message || '');
+    return code === 'BACKEND_NOT_READY' || code === 'BACKEND_TIMEOUT' || /Backend \(Cloud Functions\)|Web app do Google Apps Script/.test(code);
+  }
+
   async function loadSettings() {
     try {
       const doc = await db.collection('settings').doc(BACKUP_DOC).get();
@@ -149,7 +187,13 @@
     try {
       const snapshot = await collectSnapshot();
       const organized = organize(snapshot);
-      const result = await callBackend('driveBackup', { kind: 'full', organized, options: { folder: values.backupFolder || settings.folder, retentionCount: values.retentionCount || settings.retentionCount } });
+      const options = { folder: values.backupFolder || settings.folder, retentionCount: values.retentionCount || settings.retentionCount };
+      let result;
+      if (appsScriptUrl(values)) {
+        result = await callAppsScript('backup', { organized, options });
+      } else {
+        result = await callBackend('driveBackup', { kind: 'full', organized, options });
+      }
 
       await writeSettings({
         lastBackupAt: nowIso(),
@@ -158,10 +202,9 @@
         nextBackupAt: computeNextBackup(values),
         pendingIncremental: 0
       });
-      return { ok: true, via: 'drive', result };
+      return { ok: true, via: appsScriptUrl(values) ? 'appsscript' : 'drive', result };
     } catch (err) {
-      const code = err && (err.code || err.message || '');
-      const backendMissing = code === 'BACKEND_NOT_READY' || code === 'BACKEND_TIMEOUT' || /not-found|unavailable|Backend \(Cloud Functions\)/.test(code);
+      const backendMissing = isBackendMissingError(err);
       if (backendMissing) {
         // Fallback sem segredos: gera o pacote organizado localmente.
         const detail = await fallbackLocalExport();
@@ -222,7 +265,12 @@
       const freq = values.backupFrequency || settings.frequency;
 
       if (freq === 'real_time') {
-        const result = await callBackend('driveBackup', { kind: 'incremental', sale, options: { folder: values.backupFolder || settings.folder } });
+        let result;
+        if (appsScriptUrl(values)) {
+          result = await callAppsScript('incremental', { sale, options: { folder: values.backupFolder || settings.folder } });
+        } else {
+          result = await callBackend('driveBackup', { kind: 'incremental', sale, options: { folder: values.backupFolder || settings.folder } });
+        }
         await writeSettings({ lastBackupAt: nowIso(), lastBackupStatus: 'success', lastBackupDetail: `Venda ${sale.numero || ''} sincronizada com o Drive.` });
         return result;
       }
@@ -259,6 +307,24 @@
   // ---------------------------------------------------------------
   async function driveConnect() {
     try {
+      const values = await driveValues();
+      if (appsScriptUrl(values)) {
+        // Modo gratuito (Apps Script): não há OAuth — validamos o web app e
+        // abrimos a pasta do backup no Drive da conta do dono.
+        const st = await callAppsScript('status', {});
+        try {
+          await db.collection('api_credentials').doc('drive').set({
+            status: 'connected',
+            connectedEmail: (st && st.account) || '',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        } catch (e) {}
+        emitChange();
+        const folder = values.backupFolder || settings.folder || 'PDV BACKUP';
+        window.open('https://drive.google.com/drive/search?q=' + encodeURIComponent(folder), '_blank', 'noopener');
+        alert('Web app conectado. O backup será salvo no Google Drive da conta:\n\n' + (st && st.account || '') + '\n\nPasta: ' + folder);
+        return { ok: true };
+      }
       const result = await callBackend('driveAuthUrl', {});
       const url = result && result.url;
       if (!url) throw new Error('Sem URL de autorização retornada.');
@@ -266,15 +332,24 @@
       window.drivePollStatus();
     } catch (err) {
       alert(
-        'Para conectar o Google Drive é preciso implantar o backend (Cloud Functions).\n\n' +
-        'Siga o guia em functions/README.md e depois tente novamente.\n\nDetalhe: ' + (err && err.message)
+        'Não foi possível conectar.\n\n' +
+        'Dica: no plano gratuito, configure o "URL do web app" e o "Token do web app" ' +
+        '(criados no Google Apps Script) em "Configurar" — assim o backup vai direto para o Drive.\n\n' +
+        'Detalhe: ' + (err && err.message)
       );
     }
   }
 
   async function checkDriveStatus() {
     try {
-      const result = await callBackend('driveStatus', {});
+      const values = await driveValues();
+      let result;
+      if (appsScriptUrl(values)) {
+        result = await callAppsScript('status', {});
+        result = { connected: !!(result && result.ok), email: (result && result.account) || '' };
+      } else {
+        result = await callBackend('driveStatus', {});
+      }
       const connected = !!(result && result.connected);
       try {
         await db.collection('api_credentials').doc('drive').set({
@@ -319,6 +394,16 @@
 
   async function driveDisconnect() {
     try {
+      const values = await driveValues();
+      if (appsScriptUrl(values)) {
+        try { await callAppsScript('disconnect', {}); } catch (e) {}
+        try {
+          await db.collection('api_credentials').doc('drive').set({ status: 'disconnected', connectedEmail: '' }, { merge: true });
+        } catch (e) {}
+        emitChange();
+        alert('Conexão removida (o Apps Script não guarda tokens).');
+        return;
+      }
       await callBackend('driveDisconnect', {});
       try {
         await db.collection('api_credentials').doc('drive').set({ status: 'disconnected', connectedEmail: '' }, { merge: true });

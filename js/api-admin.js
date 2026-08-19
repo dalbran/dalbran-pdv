@@ -329,7 +329,7 @@
 ├── CLIENTES/
 ├── CONFIGURACOES/
 └── BACKUPS_COMPLETOS/   (mantém últimos ${escapeHtml(String(retention))})</pre>
-        <small class="api-drive-note">A autenticação OAuth e os tokens ficam no backend (Cloud Functions). Nenhuma credencial é gravada neste aplicativo.</small>
+        <small class="api-drive-note">Sem custo: use o Google Apps Script (URL + token do web app em "Configurar") — o backup vai direto para o Drive da conta Google. Com Cloud Functions implantadas, o OAuth acontece no backend. Nenhuma credencial é gravada neste aplicativo.</small>
       </div>
     `;
   }
@@ -421,7 +421,7 @@
 
     $('api-modal-title').textContent = 'Configurar ' + integration.name;
     $('api-modal-subtitle').textContent = integration.id === 'drive'
-      ? 'Ajuste o comportamento do backup automático. A conexão com a conta Google é feita pelo botão "Conectar conta Google" e os tokens ficam no backend.'
+      ? 'Configure a frequência do backup e a pasta. No plano gratuito, preencha a "URL do web app" e o "Token do web app" criados no Google Apps Script — o backup vai direto para o Drive.'
       : 'Preencha as credenciais da integração. Os valores são armazenados no banco de forma protegida.';
     $('api-modal-body').innerHTML = fieldsHtml;
     $('api-modal-body').dataset.integrationId = integrationId;
