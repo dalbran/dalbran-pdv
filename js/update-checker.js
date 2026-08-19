@@ -5,10 +5,13 @@
  *  1. ATUALIZAÇÃO MODULAR (web): baixa no início (e periodicamente) um
  *     manifest `versao.json` publicado junto com a versão web; baixa apenas
  *     os arquivos alterados (validando SHA-256), grava no cache do service
- *     worker (`dalbran-update-cache`) e recarrega o app.
+ *     worker (`dalbran-update-cache`) e reinicia o app.
  *  2. ATUALIZAÇÃO COMPLETA (APK): se o manifest anunciar um APK com
- *     versionCode maior que o instalado, mostra um aviso com o botão para
- *     baixar o APK novo (link do GitHub Releases / URL configurada).
+ *     versionCode maior que o instalado, oferece o download do APK.
+ *
+ * Quando uma atualização é encontrada após a verificação, um MODAL é exibido
+ * com a seleção automática da versão e o botão "Atualizar agora", que aplica
+ * a atualização e reinicia o app (fecha e reabre).
  *
  * Configurável pelo usuário em Configurações → Atualizações do Aplicativo
  * (manifestUrl, canal, verificação no início, etc.).
@@ -21,8 +24,8 @@
 
   // Versão atual do app — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.5',
-    code: 5
+    name: '0.0.6',
+    code: 6
   };
 
   let config = {
@@ -36,6 +39,11 @@
   };
 
   let state = { webVersion: '', webFiles: {}, apkCode: 0, lastCheck: 0, lastResult: '', lastManifestVersion: '' };
+
+  // Manifest atual aguardando confirmação do usuário (usado pelo modal)
+  let pendingManifest = null;
+  let pendingChanged = [];
+  let modalOpen = false;
 
   // ---------------------------------------------------------------
   // Estado persistente
@@ -108,6 +116,12 @@
     } catch (e) {}
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   // ---------------------------------------------------------------
   // Verificação principal
   // ---------------------------------------------------------------
@@ -121,7 +135,7 @@
         saveState();
         emitProgress('Sem URL de manifest configurada. Configure em Configurações → Atualizações.', 'error');
         if (!opts.silent) notify('Sem URL de verificação de atualização configurada.', 'info');
-        return { updated: false, reason: 'no-manifest-url' };
+        return { updated: false, hasUpdate: false, reason: 'no-manifest-url' };
       }
 
       emitProgress('Buscando manifest: ' + config.manifestUrl, 'info');
@@ -130,62 +144,62 @@
       state.lastManifestVersion = manifest.version || '';
       emitProgress('Manifest baixado — versão ' + (manifest.version || '?') + ' (' + (Array.isArray(manifest.web) ? manifest.web.length : 0) + ' arquivos web).', 'success');
 
-      // --- Atualização modular (web) ---
-      let updated = false;
+      // --- Detecta mudanças (atualização web modular) ---
+      let changed = [];
       if (config.checkWeb && Array.isArray(manifest.web) && manifest.version && manifest.version !== state.webVersion) {
-        const changed = manifest.web.filter(f =>
+        changed = manifest.web.filter(f =>
           f.path !== 'versao.json' && f.path !== 'sw.js' && state.webFiles[f.path] !== f.sha256
         );
-        if (changed.length > 0) {
-          emitProgress(changed.length + ' arquivo(s) alterado(s) — baixando...', 'info');
-          const applied = await downloadAndCache(changed, manifest);
-          if (applied) {
-            state.webVersion = manifest.version;
-            state.webFiles = {};
-            manifest.web.forEach(f => { state.webFiles[f.path] = f.sha256; });
-            saveState();
-            updated = true;
-            emitProgress('Atualização web aplicada — recarregando o app...', 'success');
-            setTimeout(() => { try { window.location.reload(); } catch (e) {} }, 600);
-          } else {
-            emitProgress('Falha ao baixar os arquivos da atualização.', 'error');
-          }
-        } else {
-          // já temos tudo aplicado para esta versão
-          state.webVersion = manifest.version;
-          saveState();
-          emitProgress('Arquivos já atualizados para ' + manifest.version + '.', 'info');
-        }
-      } else if (config.checkWeb) {
-        emitProgress('Web já na versão ' + (manifest.version || '') + ' (nenhuma alteração).', 'info');
       }
+      const webChanged = changed.length > 0;
 
-      // --- Atualização completa (APK) ---
-      if (config.checkApk && manifest.apk && manifest.apk.code > APP_VERSION.code) {
-        const url = (manifest.apk.url || config.apkUrl || '').replace('{VERSION}', manifest.apk.name);
-        state.apkCode = manifest.apk.code;
-        saveState();
-        emitProgress('Novo APK disponível: v' + manifest.apk.name + ' (code ' + manifest.apk.code + ').', 'success');
-        showApkUpdate(manifest.apk, url);
-      } else {
-        hideApkUpdate();
-        if (config.checkApk && manifest.apk) {
-          emitProgress('APK atualizado (instalado ' + APP_VERSION.name + ' = publicado ' + manifest.apk.name + ').', 'info');
+      // --- Detecta novo APK ---
+      const apkAvailable = !!(config.checkApk && manifest.apk && manifest.apk.code > APP_VERSION.code);
+      const apkUrl = ((manifest.apk && (manifest.apk.url || config.apkUrl)) || '').replace('{VERSION}', (manifest.apk && manifest.apk.name) || '');
+      const hasUpdate = webChanged || apkAvailable;
+
+      if (hasUpdate) {
+        pendingManifest = manifest;
+        pendingChanged = changed;
+        state.apkCode = apkAvailable ? manifest.apk.code : state.apkCode;
+        if (webChanged) emitProgress(changed.length + ' arquivo(s) web alterado(s) — atualização disponível.', 'info');
+        if (apkAvailable) emitProgress('Novo APK disponível: v' + manifest.apk.name + ' (code ' + manifest.apk.code + ').', 'success');
+
+        if (opts.showModal !== false) {
+          showUpdateModal({ manifest, changed, webChanged, apkAvailable, apkUrl });
+        } else if (apkAvailable) {
+          showApkUpdate(manifest.apk, apkUrl);
         }
+      } else {
+        // tudo em dia
+        state.webVersion = manifest.version;
+        state.apkCode = 0;
+        pendingManifest = null;
+        pendingChanged = [];
+        saveState();
+        hideApkUpdate();
+        if (config.checkWeb) emitProgress('Web já na versão ' + (manifest.version || '') + ' (nenhuma alteração).', 'info');
+        if (config.checkApk && manifest.apk) emitProgress('APK atualizado (instalado ' + APP_VERSION.name + ' = publicado ' + manifest.apk.name + ').', 'info');
       }
 
       state.lastCheck = Date.now();
-      state.lastResult = 'OK';
+      state.lastResult = hasUpdate ? 'UPDATE_AVAILABLE' : 'OK';
       saveState();
       emitProgress('Verificação concluída em ' + ((Date.now() - startedAt) / 1000).toFixed(2) + 's.', 'success');
-      if (!opts.silent) notify('Verificação de atualizações concluída.', 'info');
-      return { updated, apkAvailable: state.apkCode > APP_VERSION.code };
+      if (!opts.silent) notify(hasUpdate ? 'Atualização disponível!' : 'Verificação de atualizações concluída.', 'info');
+      return {
+        updated: false,
+        webChanged,
+        apkAvailable,
+        hasUpdate,
+        apkCode: manifest.apk ? manifest.apk.code : 0
+      };
     } catch (e) {
       state.lastResult = e.message;
       saveState();
       emitProgress('ERRO: ' + e.message, 'error');
       if (!opts.silent) notify('Falha ao verificar atualizações: ' + e.message, 'error');
-      return { updated: false, error: e.message };
+      return { updated: false, hasUpdate: false, error: e.message };
     }
   }
 
@@ -220,7 +234,159 @@
   }
 
   // ---------------------------------------------------------------
-  // Aviso de APK novo (atualização completa)
+  // Aplicar atualização web e reiniciar o app
+  // ---------------------------------------------------------------
+  async function applyWebUpdate(manifest, changed) {
+    emitProgress('Aplicando atualização web (baixando ' + changed.length + ' arquivo(s))...', 'info');
+    setModalStatus('Baixando atualização...', 'info');
+    const applied = await downloadAndCache(changed, manifest);
+    if (!applied) {
+      emitProgress('Falha ao baixar os arquivos da atualização.', 'error');
+      setModalStatus('Falha ao baixar os arquivos. Tente novamente.', 'error');
+      return false;
+    }
+    state.webVersion = manifest.version;
+    state.webFiles = {};
+    manifest.web.forEach(f => { state.webFiles[f.path] = f.sha256; });
+    pendingManifest = null;
+    pendingChanged = [];
+    saveState();
+    emitProgress('Atualização web aplicada — reiniciando o app...', 'success');
+    setModalStatus('Aplicado! Reiniciando o app...', 'success');
+    restartApp();
+    return true;
+  }
+
+  function restartApp() {
+    const doRestart = function () {
+      try {
+        const Restart = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Restart;
+        if (Restart && Restart.restartApp) { Restart.restartApp(); return; }
+      } catch (e) {}
+      try {
+        const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+        if (App && App.exitApp) { App.exitApp(); return; }
+      } catch (e) {}
+      try { window.location.reload(); } catch (e) {}
+    };
+    // Pequena pausa para o usuário ver o status antes de fechar/reabrir
+    setTimeout(doRestart, 700);
+  }
+
+  // ---------------------------------------------------------------
+  // Modal de atualização
+  // ---------------------------------------------------------------
+  function showUpdateModal(info) {
+    if (modalOpen) return;
+    modalOpen = true;
+
+    let el = document.getElementById('update-modal');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'update-modal';
+      el.className = 'update-modal hidden';
+      el.innerHTML = `
+        <div class="update-modal-overlay" id="update-modal-overlay"></div>
+        <div class="update-modal-card" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+          <button type="button" class="update-modal-close" id="update-modal-close" aria-label="Fechar"><i class="ph ph-x" aria-hidden="true"></i></button>
+          <div class="update-modal-icon"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></div>
+          <h3 id="update-modal-title">Atualização disponível</h3>
+          <p id="update-modal-sub">Uma nova versão do aplicativo está disponível.</p>
+          <div class="update-version-box">
+            <div class="update-version-col">
+              <span class="uv-label">Instalada</span>
+              <span class="uv-value uv-current" id="uv-current"></span>
+            </div>
+            <div class="update-version-arrow"><i class="ph ph-arrow-right" aria-hidden="true"></i></div>
+            <div class="update-version-col update-version-new-col">
+              <span class="uv-label">Disponível</span>
+              <span class="uv-value uv-new" id="uv-new"></span>
+            </div>
+          </div>
+          <div class="update-version-select" id="update-version-select"></div>
+          <div class="update-modal-actions">
+            <button type="button" class="btn btn-outline" id="update-modal-later">Agora não</button>
+            <button type="button" class="btn btn-primary" id="update-modal-now"><i class="ph ph-download-simple" aria-hidden="true"></i> Atualizar agora</button>
+          </div>
+          <div class="update-modal-status hidden" id="update-modal-status"></div>
+        </div>
+      `;
+      document.body.appendChild(el);
+      document.getElementById('update-modal-close').addEventListener('click', hideUpdateModal);
+      document.getElementById('update-modal-overlay').addEventListener('click', hideUpdateModal);
+      document.getElementById('update-modal-later').addEventListener('click', () => {
+        hideUpdateModal();
+        if (info && info.apkAvailable) showApkUpdate(info.manifest.apk, info.apkUrl);
+      });
+      document.getElementById('update-modal-now').addEventListener('click', onUpdateNow);
+    }
+
+    // Preenche os dados (seleção de versão automática)
+    document.getElementById('uv-current').textContent = APP_VERSION.name;
+    document.getElementById('uv-new').textContent = (info && info.manifest && info.manifest.version) || '';
+
+    const sel = document.getElementById('update-version-select');
+    let html = '';
+    if (info && info.webChanged) {
+      html += '<label class="uv-option"><input type="radio" name="update-kind" value="web" checked> <span class="uv-option-text"><strong>Web (rápido)</strong><small>Atualiza na hora e reinicia o app.</small></span></label>';
+    }
+    if (info && info.apkAvailable) {
+      html += '<label class="uv-option"><input type="radio" name="update-kind" value="apk" ' + (info.webChanged ? '' : 'checked') + '> <span class="uv-option-text"><strong>APK completo</strong><small>Baixa o instalador v' + escapeHtml((info.manifest.apk && info.manifest.apk.name) || '') + '.</small></span></label>';
+    }
+    sel.innerHTML = html;
+    sel.style.display = html ? 'flex' : 'none';
+
+    el.classList.remove('hidden');
+  }
+
+  function hideUpdateModal() {
+    const el = document.getElementById('update-modal');
+    if (el) el.classList.add('hidden');
+    modalOpen = false;
+    const st = document.getElementById('update-modal-status');
+    if (st) { st.classList.add('hidden'); st.textContent = ''; }
+  }
+
+  function setModalStatus(msg, type) {
+    const st = document.getElementById('update-modal-status');
+    if (!st) return;
+    st.textContent = msg;
+    st.className = 'update-modal-status ' + (type || 'info');
+    st.classList.remove('hidden');
+  }
+
+  async function onUpdateNow() {
+    const now = document.getElementById('update-modal-now');
+    const kindEl = document.querySelector('input[name="update-kind"]:checked');
+    const kind = kindEl ? kindEl.value : 'web';
+
+    if (!pendingManifest) { hideUpdateModal(); return; }
+    if (now) now.disabled = true;
+
+    if (kind === 'web') {
+      await applyWebUpdate(pendingManifest, pendingChanged || []);
+    } else {
+      const apk = pendingManifest.apk;
+      const url = ((apk && (apk.url || config.apkUrl)) || '').replace('{VERSION}', (apk && apk.name) || '');
+      if (url) {
+        setModalStatus('Abrindo o download do APK (' + ((apk && apk.name) || '') + ')...', 'info');
+        try {
+          const win = window.open(url, '_system');
+          if (!win) window.open(url, '_blank');
+        } catch (e) {
+          window.open(url, '_blank');
+        }
+        hideUpdateModal();
+        if (apk) showApkUpdate(apk, url);
+      } else {
+        setModalStatus('URL do APK não configurada.', 'error');
+      }
+    }
+    if (now) now.disabled = false;
+  }
+
+  // ---------------------------------------------------------------
+  // Aviso de APK novo (atualização completa — alternativa ao modal)
   // ---------------------------------------------------------------
   function showApkUpdate(apk, url) {
     let el = document.getElementById('apk-update-banner');
@@ -260,12 +426,6 @@
   function hideApkUpdate() {
     const el = document.getElementById('apk-update-banner');
     if (el) el.classList.remove('show');
-  }
-
-  function escapeHtml(value) {
-    return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // ---------------------------------------------------------------
@@ -325,17 +485,9 @@
       return;
     }
     setSplashMessage('Verificando atualizações...');
-    let updated = false;
     try {
-      const res = await checkNow({ silent: true });
-      updated = !!(res && res.updated);
+      await checkNow({ silent: true });
     } catch (e) {}
-    if (updated) {
-      // Atualização aplicada — a página será recarregada; a splash fica visível
-      // até o novo carregamento terminar (sem flash de tela branca).
-      setSplashMessage('Atualizando sistema...');
-      return;
-    }
     window.__updateStartupPending = false;
     try { window.dismissSplashScreen(); } catch (e) {}
   }

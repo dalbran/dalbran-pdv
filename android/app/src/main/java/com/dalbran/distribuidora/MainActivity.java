@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NativeKeyboardPlugin.class);
+        registerPlugin(RestartPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
