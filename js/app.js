@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 window.dismissSplashScreen = function() {
   // Aguarda a verificação de atualização na inicialização (sem tela branca)
   if (window.__updateStartupPending) return;
+  document.body.classList.remove('splash-active');
   const splash = document.getElementById('app-splash-screen');
   if (splash) {
     splash.classList.add('fade-out');

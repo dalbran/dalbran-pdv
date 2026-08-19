@@ -5049,4 +5049,64 @@ body.theme-dark select.client-input {
   to { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   LOG VISUAL DE ATUALIZAÇÃO (Configurações → Atualizações)
+   ========================================================================== */
+.update-check-log-wrap {
+  margin-top: 0.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  background: rgba(2, 132, 199, 0.05);
+}
+
+.update-check-log-header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  color: var(--text-main);
+  margin-bottom: 0.5rem;
+}
+
+.update-check-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(2, 132, 199, 0.2);
+  border-top-color: var(--accent, #0284c7);
+  border-radius: 50%;
+  animation: splashSpin 0.7s linear infinite;
+  flex: none;
+}
+
+body.update-checking #btn-check-updates {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+body.update-checking #btn-check-updates .ph-magnifying-glass::before {
+  content: '\f1f7';
+  animation: splashSpin 0.8s linear infinite;
+  display: inline-block;
+}
+
+.update-check-log {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg-dark, #0f172a);
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.update-log-line.info { color: #7dd3fc; }
+.update-log-line.success { color: #4ade80; }
+.update-log-line.error { color: #f87171; }
+
 

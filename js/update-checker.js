@@ -21,8 +21,8 @@
 
   // Versão atual do app — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.4-beta',
-    code: 4
+    name: '0.0.5',
+    code: 5
   };
 
   let config = {
@@ -99,22 +99,36 @@
     if (typeof showToast === 'function') showToast(message, type);
   }
 
+  // Emite evento de progresso para o log visual (Configurações → Atualizações)
+  function emitProgress(msg, type) {
+    try {
+      document.dispatchEvent(new CustomEvent('app:update-progress', {
+        detail: { msg: msg, type: type || 'info', time: Date.now() }
+      }));
+    } catch (e) {}
+  }
+
   // ---------------------------------------------------------------
   // Verificação principal
   // ---------------------------------------------------------------
   async function checkNow(opts) {
     opts = opts || {};
+    const startedAt = Date.now();
+    emitProgress('Verificando atualizações...', 'info');
     try {
       if (!config.manifestUrl) {
         state.lastResult = 'Sem URL de manifest configurada.';
         saveState();
+        emitProgress('Sem URL de manifest configurada. Configure em Configurações → Atualizações.', 'error');
         if (!opts.silent) notify('Sem URL de verificação de atualização configurada.', 'info');
         return { updated: false, reason: 'no-manifest-url' };
       }
 
+      emitProgress('Buscando manifest: ' + config.manifestUrl, 'info');
       const sep = config.manifestUrl.includes('?') ? '&' : '?';
       const manifest = await fetchJson(config.manifestUrl + sep + 't=' + Date.now());
       state.lastManifestVersion = manifest.version || '';
+      emitProgress('Manifest baixado — versão ' + (manifest.version || '?') + ' (' + (Array.isArray(manifest.web) ? manifest.web.length : 0) + ' arquivos web).', 'success');
 
       // --- Atualização modular (web) ---
       let updated = false;
@@ -123,6 +137,7 @@
           f.path !== 'versao.json' && f.path !== 'sw.js' && state.webFiles[f.path] !== f.sha256
         );
         if (changed.length > 0) {
+          emitProgress(changed.length + ' arquivo(s) alterado(s) — baixando...', 'info');
           const applied = await downloadAndCache(changed, manifest);
           if (applied) {
             state.webVersion = manifest.version;
@@ -130,13 +145,19 @@
             manifest.web.forEach(f => { state.webFiles[f.path] = f.sha256; });
             saveState();
             updated = true;
+            emitProgress('Atualização web aplicada — recarregando o app...', 'success');
             setTimeout(() => { try { window.location.reload(); } catch (e) {} }, 600);
+          } else {
+            emitProgress('Falha ao baixar os arquivos da atualização.', 'error');
           }
         } else {
           // já temos tudo aplicado para esta versão
           state.webVersion = manifest.version;
           saveState();
+          emitProgress('Arquivos já atualizados para ' + manifest.version + '.', 'info');
         }
+      } else if (config.checkWeb) {
+        emitProgress('Web já na versão ' + (manifest.version || '') + ' (nenhuma alteração).', 'info');
       }
 
       // --- Atualização completa (APK) ---
@@ -144,19 +165,25 @@
         const url = (manifest.apk.url || config.apkUrl || '').replace('{VERSION}', manifest.apk.name);
         state.apkCode = manifest.apk.code;
         saveState();
+        emitProgress('Novo APK disponível: v' + manifest.apk.name + ' (code ' + manifest.apk.code + ').', 'success');
         showApkUpdate(manifest.apk, url);
       } else {
         hideApkUpdate();
+        if (config.checkApk && manifest.apk) {
+          emitProgress('APK atualizado (instalado ' + APP_VERSION.name + ' = publicado ' + manifest.apk.name + ').', 'info');
+        }
       }
 
       state.lastCheck = Date.now();
       state.lastResult = 'OK';
       saveState();
+      emitProgress('Verificação concluída em ' + ((Date.now() - startedAt) / 1000).toFixed(2) + 's.', 'success');
       if (!opts.silent) notify('Verificação de atualizações concluída.', 'info');
       return { updated, apkAvailable: state.apkCode > APP_VERSION.code };
     } catch (e) {
       state.lastResult = e.message;
       saveState();
+      emitProgress('ERRO: ' + e.message, 'error');
       if (!opts.silent) notify('Falha ao verificar atualizações: ' + e.message, 'error');
       return { updated: false, error: e.message };
     }
@@ -251,7 +278,34 @@
     runStartupCheck,
     currentState: () => state
   };
-  window.checkAppUpdates = () => checkNow({ silent: false });
+
+  // "Verificar atualizações agora" — mostra loading e log visual
+  window.checkAppUpdates = async function () {
+    const wrap = document.getElementById('update-check-log-wrap');
+    const log = document.getElementById('update-check-log');
+    if (wrap) wrap.classList.remove('hidden');
+    if (log) log.innerHTML = '';
+    document.body.classList.add('update-checking');
+    try {
+      await checkNow({ silent: false });
+    } catch (e) {
+      notify('Falha ao verificar atualizações: ' + e.message, 'error');
+    }
+    document.body.classList.remove('update-checking');
+  };
+
+  // Renderiza o log visual (se o painel de Configurações estiver na tela)
+  document.addEventListener('app:update-progress', (ev) => {
+    const log = document.getElementById('update-check-log');
+    if (!log) return;
+    const d = ev.detail || {};
+    const line = '[' + new Date(d.time || Date.now()).toLocaleTimeString('pt-BR') + '] ' + (d.msg || '');
+    const row = document.createElement('div');
+    row.className = 'update-log-line ' + (d.type || 'info');
+    row.textContent = line;
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  });
 
   // ---------------------------------------------------------------
   // Tela de loading na abertura do app

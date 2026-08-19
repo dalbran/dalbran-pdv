@@ -10,6 +10,23 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
+  <!-- CSS crítico inline: garante fundo escuro e splash mesmo se o CSS externo falhar
+       ou durante recarga do service worker (nunca tela branca na abertura) -->
+  <style>
+    html, body.splash-active { background-color: #0f172a !important; }
+    #app-splash-screen { position: fixed; inset: 0; z-index: 99999; background: radial-gradient(circle at 50% 40%, #1e293b 0%, #0f172a 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; color: #fff; }
+    .splash-brand-logo { width: 90px; height: 90px; border-radius: 20px; background: linear-gradient(135deg,#0284c7,#0369a1); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px -5px rgba(2,132,199,.5); overflow: hidden; }
+    .splash-brand-logo img { width: 100%; height: 100%; object-fit: cover; }
+    .splash-brand-letter { font-size: 3rem; font-weight: 900; color: #fff; }
+    .splash-title-wrap { text-align: center; }
+    .splash-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; color: #f8fafc; margin: 0; }
+    .splash-subtitle { font-size: .85rem; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+    .splash-loader-wrap { display: flex; flex-direction: column; align-items: center; gap: .75rem; margin-top: 1rem; }
+    .splash-spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,.15); border-top-color: #38bdf8; border-radius: 50%; animation: splashSpin .8s linear infinite; }
+    .splash-status-text { font-size: .8rem; color: #94a3b8; font-weight: 500; }
+    @keyframes splashSpin { to { transform: rotate(360deg); } }
+  </style>
+
   <link rel="stylesheet" href="css/style.css">
   <script>
     (function() {
@@ -38,7 +55,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
 </head>
-<body>
+<body class="splash-active">
 
   <!-- Splash / Loading Screen -->
   <div id="app-splash-screen" class="app-splash-screen">
