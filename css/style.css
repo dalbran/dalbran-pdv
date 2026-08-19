@@ -1419,6 +1419,146 @@ body {
 }
 
 /* --------------------------------------------------------------------------
+   MODAL DE ATUALIZAÇÃO (update-checker)
+   -------------------------------------------------------------------------- */
+.update-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.update-modal.hidden { display: none; }
+.update-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(2px);
+}
+.update-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.5);
+  padding: 1.5rem 1.4rem 1.4rem;
+  animation: updateModalIn 0.25s ease;
+}
+@keyframes updateModalIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.update-modal-close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+.update-modal-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  color: #fff;
+  background: linear-gradient(135deg, #0284c7, #0e7490);
+  margin-bottom: 0.9rem;
+}
+.update-modal-card h3 { margin: 0 0 0.3rem; font-size: 1.15rem; color: #0f172a; }
+.update-modal-sub { margin: 0 0 1rem; font-size: 0.85rem; color: #64748b; line-height: 1.4; }
+.update-modal-sub.mandatory { color: #b45309; font-weight: 600; }
+.update-version-box {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 0.9rem;
+}
+.update-version-col { display: flex; flex-direction: column; gap: 0.15rem; }
+.update-version-col.update-version-new-col { margin-left: auto; text-align: right; }
+.uv-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; }
+.uv-value { font-size: 1.05rem; font-weight: 800; color: #0f172a; }
+.uv-value.uv-new { color: #0284c7; }
+.update-version-arrow { color: #94a3b8; font-size: 1.1rem; }
+.update-version-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+.uv-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.uv-option:hover { border-color: #0284c7; background: #f0f9ff; }
+.uv-option input { margin-top: 0.2rem; accent-color: #0284c7; }
+.uv-option-text { display: flex; flex-direction: column; gap: 0.1rem; }
+.uv-option-text strong { font-size: 0.88rem; color: #0f172a; }
+.uv-option-text small { font-size: 0.75rem; color: #64748b; }
+.update-modal-bar { margin-bottom: 0.9rem; }
+.update-modal-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+.update-modal-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0284c7, #22d3ee);
+  transition: width 0.25s ease;
+}
+.update-modal-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+.update-modal-actions .btn {
+  flex: 1;
+  justify-content: center;
+  padding: 0.7rem 0.5rem;
+  font-size: 0.9rem;
+}
+.update-modal-status {
+  margin-top: 0.8rem;
+  font-size: 0.8rem;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.update-modal-status.info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.update-modal-status.success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.update-modal-status.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.update-modal-status.hidden { display: none; }
+@media (max-width: 480px) {
+  .update-modal-card { padding: 1.2rem 1rem 1rem; }
+}
+
+/* --------------------------------------------------------------------------
    BALANÇO FINANCEIRO — APRESENTAÇÃO WEB (telas largas)
    A mesma lógica/IDs; apenas a apresentação aproveita o espaço horizontal.
    -------------------------------------------------------------------------- */

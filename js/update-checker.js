@@ -25,8 +25,8 @@
 
   // Versão atual do app — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.10',
-    code: 10
+    name: '0.0.11',
+    code: 11
   };
 
   let config = {
@@ -53,6 +53,7 @@
   let pendingManifest = null;
   let pendingChanged = [];
   let modalOpen = false;
+  let mandatoryUpdate = false;
 
   // ---------------------------------------------------------------
   // Estado persistente
@@ -206,8 +207,13 @@
       emitProgress('Manifest baixado — versão ' + (manifest.version || '?') + ' (' + (Array.isArray(manifest.web) ? manifest.web.length : 0) + ' arquivos web).', 'success');
 
       // --- Detecta mudanças (atualização web modular) ---
+      // Só considera a web "nova" se o manifest representar uma versão MAIOR
+      // que a instalada (code). Isso evita re-oferecer a versão já instalada
+      // quando o state.webVersion ficou defasado (ex.: APK 0.0.10 instalado
+      // mas estado persistido de uma web 0.0.9).
+      const manifestCode = manifest.code || (manifest.apk && manifest.apk.code) || 0;
       let changed = [];
-      if (config.checkWeb && Array.isArray(manifest.web) && manifest.version && manifest.version !== state.webVersion) {
+      if (config.checkWeb && Array.isArray(manifest.web) && manifest.version && manifestCode > APP_VERSION.code && manifest.version !== state.webVersion) {
         changed = manifest.web.filter(f =>
           f.path !== 'versao.json' && f.path !== 'sw.js' && state.webFiles[f.path] !== f.sha256
         );
@@ -274,10 +280,12 @@ if (opts.showModal !== false) {
     }
   }
 
-  async function downloadAndCache(changed, manifest) {
+  async function downloadAndCache(changed, manifest, onProgress) {
     const files = [];
     const manifestBase = new URL(config.manifestUrl);
-    for (const f of changed) {
+    const total = changed.length || 1;
+    for (let i = 0; i < changed.length; i++) {
+      const f = changed[i];
       try {
         const res = await fetch(new URL(f.path, manifestBase).href, { cache: 'no-store' });
         if (!res.ok) continue;
@@ -286,6 +294,7 @@ if (opts.showModal !== false) {
         if (f.sha256 && hash !== f.sha256) continue; // integridade
         files.push({ path: f.path, buffer: buf });
       } catch (e) {}
+      if (onProgress) onProgress(Math.round(((i + 1) / total) * 100));
     }
     if (!files.length) return false;
 
@@ -309,8 +318,10 @@ if (opts.showModal !== false) {
   // ---------------------------------------------------------------
   async function applyWebUpdate(manifest, changed) {
     emitProgress('Aplicando atualização web (baixando ' + changed.length + ' arquivo(s))...', 'info');
-    setModalStatus('Baixando atualização...', 'info');
-    const applied = await downloadAndCache(changed, manifest);
+    setModalProgress(0, 'Baixando atualização...');
+    const applied = await downloadAndCache(changed, manifest, (pct) => {
+      setModalProgress(pct, 'Baixando atualização... ' + pct + '%');
+    });
     if (!applied) {
       emitProgress('Falha ao baixar os arquivos da atualização.', 'error');
       setModalStatus('Falha ao baixar os arquivos. Tente novamente.', 'error');
@@ -324,7 +335,7 @@ if (opts.showModal !== false) {
     pendingChanged = [];
     saveState();
     emitProgress('Atualização web aplicada — reiniciando o app...', 'success');
-    setModalStatus('Aplicado! Reiniciando o app...', 'success');
+    setModalProgress(100, 'Aplicado! Reiniciando o app...');
     restartApp();
     return true;
   }
@@ -359,7 +370,7 @@ if (opts.showModal !== false) {
     const fileName = 'Dalbran-v' + (apk.name || '') + '.apk';
     const onProgress = (ev) => {
       const pct = (ev && ev.percent != null) ? ev.percent : 0;
-      setModalStatus('Baixando APK ' + (apk.name || '') + '... ' + pct + '%', 'info');
+      setModalProgress(pct, 'Baixando APK ' + (apk.name || '') + '... ' + pct + '%');
       emitProgress('Baixando APK: ' + pct + '%', 'info');
     };
     let listener;
@@ -373,14 +384,14 @@ if (opts.showModal !== false) {
       }
     };
     try {
-      setModalStatus('Baixando APK ' + (apk.name || '') + '...', 'info');
+      setModalProgress(0, 'Baixando APK ' + (apk.name || '') + '...');
       let res;
       try {
         res = await doDownload(url);
       } catch (d1) {
         if (!fallbackUrl) throw d1.err;
         emitProgress('Falha no download principal (' + (d1.err.message || 'erro') + '). Tentando servidor de backup...', 'info');
-        setModalStatus('Servidor principal indisponível — tentando backup...', 'info');
+        setModalProgress(0, 'Servidor principal indisponível — tentando backup...');
         try {
           res = await doDownload(fallbackUrl);
         } catch (d2) {
@@ -388,7 +399,7 @@ if (opts.showModal !== false) {
         }
       }
       emitProgress('APK baixado (' + (res && res.size ? Math.round(res.size / 1048576) : '?') + ' MB).', 'success');
-      setModalStatus('Iniciando instalação...', 'info');
+      setModalProgress(100, 'Iniciando instalação...');
       const ins = await Inst.installApk({ filePath: res.filePath });
       if (ins && ins.needsPermission) {
         state.apkCode = apk.code;
@@ -419,6 +430,8 @@ if (opts.showModal !== false) {
     if (modalOpen) return;
     modalOpen = true;
 
+    mandatoryUpdate = !!(info && info.manifest && info.manifest.force === true);
+
     let el = document.getElementById('update-modal');
     if (!el) {
       el = document.createElement('div');
@@ -443,6 +456,9 @@ if (opts.showModal !== false) {
             </div>
           </div>
           <div class="update-version-select" id="update-version-select"></div>
+          <div class="update-modal-bar hidden" id="update-modal-bar">
+            <div class="update-modal-bar-track"><div class="update-modal-bar-fill" id="update-modal-bar-fill"></div></div>
+          </div>
           <div class="update-modal-actions">
             <button type="button" class="btn btn-outline" id="update-modal-later">Agora não</button>
             <button type="button" class="btn btn-primary" id="update-modal-now"><i class="ph ph-download-simple" aria-hidden="true"></i> Atualizar agora</button>
@@ -460,6 +476,17 @@ if (opts.showModal !== false) {
     // Preenche os dados (seleção de versão automática)
     document.getElementById('uv-current').textContent = APP_VERSION.name;
     document.getElementById('uv-new').textContent = (info && info.manifest && info.manifest.version) || '';
+    const sub = document.getElementById('update-modal-sub');
+    if (sub) {
+      sub.textContent = mandatoryUpdate
+        ? 'Esta é uma atualização obrigatória — você precisa atualizar para continuar usando o aplicativo.'
+        : 'Uma nova versão do aplicativo está disponível.';
+      sub.className = mandatoryUpdate ? 'update-modal-sub mandatory' : 'update-modal-sub';
+    }
+    const close = document.getElementById('update-modal-close');
+    const later = document.getElementById('update-modal-later');
+    if (close) close.style.display = mandatoryUpdate ? 'none' : '';
+    if (later) later.style.display = mandatoryUpdate ? 'none' : '';
 
     const sel = document.getElementById('update-version-select');
     let html = '';
@@ -479,12 +506,18 @@ if (opts.showModal !== false) {
     const el = document.getElementById('update-modal');
     if (el) el.classList.add('hidden');
     modalOpen = false;
+    mandatoryUpdate = false;
     const st = document.getElementById('update-modal-status');
     if (st) { st.classList.add('hidden'); st.textContent = ''; }
+    const bar = document.getElementById('update-modal-bar');
+    const fill = document.getElementById('update-modal-bar-fill');
+    if (bar) bar.classList.add('hidden');
+    if (fill) fill.style.width = '0%';
   }
 
   // Dispensa o aviso para a versão atual ("Agora não"/X/fundo)
   function dismissUpdateModal() {
+    if (mandatoryUpdate) return; // atualização obrigatória não pode ser dispensada
     if (pendingManifest && pendingManifest.version) {
       state.dismissedVersion = pendingManifest.version;
       saveState();
@@ -500,6 +533,16 @@ if (opts.showModal !== false) {
     st.classList.remove('hidden');
   }
 
+  function setModalProgress(pct, msg) {
+    const fill = document.getElementById('update-modal-bar-fill');
+    if (fill) {
+      fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    }
+    const bar = document.getElementById('update-modal-bar');
+    if (bar) bar.classList.remove('hidden');
+    if (msg != null) setModalStatus(msg, 'info');
+  }
+
   async function onUpdateNow() {
     const now = document.getElementById('update-modal-now');
     const kindEl = document.querySelector('input[name="update-kind"]:checked');
@@ -507,6 +550,7 @@ if (opts.showModal !== false) {
 
     if (!pendingManifest) { hideUpdateModal(); return; }
     if (now) now.disabled = true;
+    document.querySelectorAll('input[name="update-kind"]').forEach(r => { r.disabled = true; });
 
     if (kind === 'web') {
       await applyWebUpdate(pendingManifest, pendingChanged || []);
