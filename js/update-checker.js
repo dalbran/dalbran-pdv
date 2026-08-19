@@ -7,11 +7,12 @@
  *     os arquivos alterados (validando SHA-256), grava no cache do service
  *     worker (`dalbran-update-cache`) e reinicia o app.
  *  2. ATUALIZAÇÃO COMPLETA (APK): se o manifest anunciar um APK com
- *     versionCode maior que o instalado, oferece o download do APK.
+ *     versionCode maior que o instalado, baixa o APK DENTRO do app
+ *     (plugin nativo ApkInstaller) e dispara a instalação do Android,
+ *     pedindo a permissão "Instalar apps desconhecidos" quando necessário.
  *
  * Quando uma atualização é encontrada após a verificação, um MODAL é exibido
- * com a seleção automática da versão e o botão "Atualizar agora", que aplica
- * a atualização e reinicia o app (fecha e reabre).
+ * com a seleção automática da versão e o botão "Atualizar agora".
  *
  * Configurável pelo usuário em Configurações → Atualizações do Aplicativo
  * (manifestUrl, canal, verificação no início, etc.).
@@ -19,13 +20,13 @@
 (function () {
   'use strict';
 
-  const UPDATE_CACHE = 'dalbran-update-cache';
+  const UPDATE_CACHE = 'dalbran-update-cache-v2';
   const LS_KEY = 'dalbran:update:state';
 
   // Versão atual do app — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.7',
-    code: 7
+    name: '0.0.8',
+    code: 8
   };
 
   let config = {
@@ -38,7 +39,15 @@
     intervalMinutes: 0       // 0 = verificar somente ao abrir o app (após fechar)
   };
 
-  let state = { webVersion: '', webFiles: {}, apkCode: 0, lastCheck: 0, lastResult: '', lastManifestVersion: '' };
+  let state = {
+    webVersion: '',
+    webFiles: {},
+    apkCode: 0,              // último code de APK oferecido/instalado
+    dismissedVersion: '',    // versão que o usuário dispensou ("Agora não")
+    lastCheck: 0,
+    lastResult: '',
+    lastManifestVersion: ''
+  };
 
   // Manifest atual aguardando confirmação do usuário (usado pelo modal)
   let pendingManifest = null;
@@ -103,6 +112,19 @@
     return 'application/octet-stream';
   }
 
+  // Normaliza URL para casar com as chaves do cache:
+  //  - remove query string
+  //  - trata a raiz "/" como "/index.html"
+  function normalizeUrl(url) {
+    try {
+      const u = new URL(url);
+      u.search = '';
+      const p = u.pathname;
+      if (p === '' || p === '/') u.pathname = '/index.html';
+      return u.href;
+    } catch (e) { return url; }
+  }
+
   function notify(message, type) {
     if (typeof showToast === 'function') showToast(message, type);
   }
@@ -120,6 +142,45 @@
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // ---------------------------------------------------------------
+  // Service Worker — ativação/recuperação
+  // ---------------------------------------------------------------
+  async function ensureServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+      emitProgress('Service Worker indisponível neste navegador.', 'info');
+      return;
+    }
+    try {
+      let reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        reg = await navigator.serviceWorker.register('./sw.js');
+        emitProgress('Service Worker registrado.', 'info');
+      }
+      const controlled = !!navigator.serviceWorker.controller;
+      emitProgress('Service Worker: ' + (controlled ? 'ativo' : 'inativo (primeira carga)'), 'info');
+      if (!controlled) {
+        try { await navigator.serviceWorker.ready; } catch (e) {}
+        if (!navigator.serviceWorker.controller && !sessionStorage.getItem('dlb:sw:reload')) {
+          sessionStorage.setItem('dlb:sw:reload', '1');
+          emitProgress('Ativando Service Worker — recarregando uma única vez...', 'info');
+          window.location.reload();
+        }
+      }
+    } catch (e) {
+      emitProgress('Falha ao ativar o Service Worker: ' + e.message, 'error');
+    }
+  }
+
+  // Pede permissões nativas necessárias na primeira abertura
+  function requestNativePermissions() {
+    try {
+      const Inst = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ApkInstaller;
+      if (Inst && Inst.requestStoragePermissions) {
+        Inst.requestStoragePermissions().then(() => {}).catch(() => {});
+      }
+    } catch (e) {}
   }
 
   // ---------------------------------------------------------------
@@ -153,10 +214,14 @@
       }
       const webChanged = changed.length > 0;
 
-      // --- Detecta novo APK ---
-      const apkAvailable = !!(config.checkApk && manifest.apk && manifest.apk.code > APP_VERSION.code);
+      // --- Detecta novo APK (sem re-avisar código já oferecido) ---
+      const apkAvailable = !!(config.checkApk && manifest.apk &&
+        manifest.apk.code > APP_VERSION.code && manifest.apk.code > state.apkCode);
       const apkUrl = ((manifest.apk && (manifest.apk.url || config.apkUrl)) || '').replace('{VERSION}', (manifest.apk && manifest.apk.name) || '');
       const hasUpdate = webChanged || apkAvailable;
+
+      // Versão que o usuário já dispensou ("Agora não") — não re-avisar
+      const dismissed = state.dismissedVersion === manifest.version;
 
       if (hasUpdate) {
         pendingManifest = manifest;
@@ -166,7 +231,12 @@
         if (apkAvailable) emitProgress('Novo APK disponível: v' + manifest.apk.name + ' (code ' + manifest.apk.code + ').', 'success');
 
         if (opts.showModal !== false) {
-          showUpdateModal({ manifest, changed, webChanged, apkAvailable, apkUrl });
+          if (!dismissed || opts.force) {
+            if (dismissed && opts.force) state.dismissedVersion = '';
+            showUpdateModal({ manifest, changed, webChanged, apkAvailable, apkUrl });
+          } else {
+            emitProgress('Atualização ' + manifest.version + ' já avisada anteriormente (dispensada) — ignorando.', 'info');
+          }
         } else if (apkAvailable) {
           showApkUpdate(manifest.apk, apkUrl);
         }
@@ -186,7 +256,7 @@
       state.lastResult = hasUpdate ? 'UPDATE_AVAILABLE' : 'OK';
       saveState();
       emitProgress('Verificação concluída em ' + ((Date.now() - startedAt) / 1000).toFixed(2) + 's.', 'success');
-      if (!opts.silent) notify(hasUpdate ? 'Atualização disponível!' : 'Verificação de atualizações concluída.', 'info');
+      if (!opts.silent) notify(hasUpdate && !dismissed ? 'Atualização disponível!' : 'Verificação de atualizações concluída.', 'info');
       return {
         updated: false,
         webChanged,
@@ -223,8 +293,8 @@
       const cache = await caches.open(UPDATE_CACHE);
       for (const f of files) {
         const body = new Response(f.buffer, { headers: { 'Content-Type': contentType(f.path) } });
-        // chave local (como o app carrega) — origin + caminho
-        const localUrl = new URL(f.path, window.location.origin).href;
+        // chave normalizada (origem local + caminho como o app carrega)
+        const localUrl = normalizeUrl(new URL(f.path, window.location.origin).href);
         await cache.put(new Request(localUrl, { cache: 'no-store' }), body.clone());
       }
       return true;
@@ -248,6 +318,7 @@
     state.webVersion = manifest.version;
     state.webFiles = {};
     manifest.web.forEach(f => { state.webFiles[f.path] = f.sha256; });
+    state.dismissedVersion = '';
     pendingManifest = null;
     pendingChanged = [];
     saveState();
@@ -270,7 +341,53 @@
       try { window.location.reload(); } catch (e) {}
     };
     // Pequena pausa para o usuário ver o status antes de fechar/reabrir
-    setTimeout(doRestart, 700);
+    setTimeout(doRestart, 900);
+  }
+
+  // ---------------------------------------------------------------
+  // APK interno (download + instalação via plugin nativo)
+  // ---------------------------------------------------------------
+  async function installApkInternal(url, apk) {
+    const P = window.Capacitor && window.Capacitor.Plugins;
+    const Inst = P && P.ApkInstaller;
+    if (!Inst || !Inst.downloadApk || !Inst.installApk) {
+      setModalStatus('Instalador interno não disponível nesta versão do app.', 'error');
+      emitProgress('Plugin ApkInstaller não disponível.', 'error');
+      return false;
+    }
+    const fileName = 'Dalbran-v' + (apk.name || '') + '.apk';
+    const onProgress = (ev) => {
+      const pct = (ev && ev.percent != null) ? ev.percent : 0;
+      setModalStatus('Baixando APK ' + (apk.name || '') + '... ' + pct + '%', 'info');
+      emitProgress('Baixando APK: ' + pct + '%', 'info');
+    };
+    let listener;
+    try { listener = Inst.addListener('progress', onProgress); } catch (e) {}
+    try {
+      setModalStatus('Baixando APK ' + (apk.name || '') + '...', 'info');
+      const res = await Inst.downloadApk({ url, fileName });
+      emitProgress('APK baixado (' + (res && res.size ? Math.round(res.size / 1048576) : '?') + ' MB).', 'success');
+      setModalStatus('Iniciando instalação...', 'info');
+      const ins = await Inst.installApk({ filePath: res.filePath });
+      if (ins && ins.needsPermission) {
+        state.apkCode = apk.code;
+        saveState();
+        setModalStatus(ins.message || 'Habilite a instalação de apps desconhecidos e volte ao app para concluir.', 'error');
+        emitProgress('Aguardando permissão de instalação do sistema.', 'error');
+        return false;
+      }
+      emitProgress('Instalação iniciada pelo sistema Android.', 'success');
+      setModalStatus('Instalação iniciada pelo sistema.', 'success');
+      state.apkCode = apk.code;
+      saveState();
+      return true;
+    } catch (err) {
+      setModalStatus('Falha ao baixar/instalar o APK: ' + (err.message || 'erro'), 'error');
+      emitProgress('ERRO no APK: ' + (err.message || 'erro'), 'error');
+      return false;
+    } finally {
+      try { if (listener && listener.remove) listener.remove(); } catch (e) {}
+    }
   }
 
   // ---------------------------------------------------------------
@@ -312,12 +429,9 @@
         </div>
       `;
       document.body.appendChild(el);
-      document.getElementById('update-modal-close').addEventListener('click', hideUpdateModal);
-      document.getElementById('update-modal-overlay').addEventListener('click', hideUpdateModal);
-      document.getElementById('update-modal-later').addEventListener('click', () => {
-        hideUpdateModal();
-        if (info && info.apkAvailable) showApkUpdate(info.manifest.apk, info.apkUrl);
-      });
+      document.getElementById('update-modal-close').addEventListener('click', dismissUpdateModal);
+      document.getElementById('update-modal-overlay').addEventListener('click', dismissUpdateModal);
+      document.getElementById('update-modal-later').addEventListener('click', dismissUpdateModal);
       document.getElementById('update-modal-now').addEventListener('click', onUpdateNow);
     }
 
@@ -331,7 +445,7 @@
       html += '<label class="uv-option"><input type="radio" name="update-kind" value="web" checked> <span class="uv-option-text"><strong>Web (rápido)</strong><small>Atualiza na hora e reinicia o app.</small></span></label>';
     }
     if (info && info.apkAvailable) {
-      html += '<label class="uv-option"><input type="radio" name="update-kind" value="apk" ' + (info.webChanged ? '' : 'checked') + '> <span class="uv-option-text"><strong>APK completo</strong><small>Baixa o instalador v' + escapeHtml((info.manifest.apk && info.manifest.apk.name) || '') + '.</small></span></label>';
+      html += '<label class="uv-option"><input type="radio" name="update-kind" value="apk" ' + (info.webChanged ? '' : 'checked') + '> <span class="uv-option-text"><strong>APK completo</strong><small>Baixa e instala o instalador v' + escapeHtml((info.manifest.apk && info.manifest.apk.name) || '') + ' pelo próprio app.</small></span></label>';
     }
     sel.innerHTML = html;
     sel.style.display = html ? 'flex' : 'none';
@@ -345,6 +459,15 @@
     modalOpen = false;
     const st = document.getElementById('update-modal-status');
     if (st) { st.classList.add('hidden'); st.textContent = ''; }
+  }
+
+  // Dispensa o aviso para a versão atual ("Agora não"/X/fundo)
+  function dismissUpdateModal() {
+    if (pendingManifest && pendingManifest.version) {
+      state.dismissedVersion = pendingManifest.version;
+      saveState();
+    }
+    hideUpdateModal();
   }
 
   function setModalStatus(msg, type) {
@@ -368,19 +491,13 @@
     } else {
       const apk = pendingManifest.apk;
       const url = ((apk && (apk.url || config.apkUrl)) || '').replace('{VERSION}', (apk && apk.name) || '');
-      if (url) {
-        setModalStatus('Abrindo o download do APK (' + ((apk && apk.name) || '') + ')...', 'info');
-        try {
-          const win = window.open(url, '_system');
-          if (!win) window.open(url, '_blank');
-        } catch (e) {
-          window.open(url, '_blank');
-        }
-        hideUpdateModal();
-        if (apk) showApkUpdate(apk, url);
-      } else {
+      if (!url) {
         setModalStatus('URL do APK não configurada.', 'error');
+      } else {
+        await installApkInternal(url, apk);
       }
+      if (now) now.disabled = false;
+      return;
     }
     if (now) now.disabled = false;
   }
@@ -408,12 +525,7 @@
       document.body.appendChild(el);
       document.getElementById('apk-update-download').addEventListener('click', () => {
         if (url) {
-          try {
-            const win = window.open(url, '_system');
-            if (!win) window.open(url, '_blank');
-          } catch (e) {
-            window.open(url, '_blank');
-          }
+          installApkInternal(url, apk);
         } else {
           notify('URL do APK não configurada. Adicione em Configurações → Atualizações.', 'error');
         }
@@ -435,7 +547,9 @@
     APP_VERSION,
     config,
     checkNow: () => checkNow({ silent: false }),
+    checkNowForced: () => checkNow({ silent: false, force: true }),
     runStartupCheck,
+    requestNativePermissions,
     currentState: () => state
   };
 
@@ -447,7 +561,7 @@
     if (log) log.innerHTML = '';
     document.body.classList.add('update-checking');
     try {
-      await checkNow({ silent: false });
+      await checkNow({ silent: false, force: true });
     } catch (e) {
       notify('Falha ao verificar atualizações: ' + e.message, 'error');
     }
@@ -500,6 +614,12 @@
     await loadConfigFromFirestore();
 
     await runStartupCheck();
+
+    // Ativa o Service Worker (registra/recupera) após a splash
+    await ensureServiceWorker();
+    // Pede permissões nativas necessárias (armazenamento legado, etc.)
+    requestNativePermissions();
+
     if (config.intervalMinutes > 0) {
       setInterval(() => checkNow({ silent: true }), Math.max(10, config.intervalMinutes) * 60 * 1000);
     }

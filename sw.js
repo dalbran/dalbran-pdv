@@ -1,5 +1,5 @@
-const CACHE_NAME = 'dalbran-cache-v10';
-const UPDATE_CACHE = 'dalbran-update-cache';
+const CACHE_NAME = 'dalbran-cache-v11';
+const UPDATE_CACHE = 'dalbran-update-cache-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -25,31 +25,44 @@ const ASSETS_TO_CACHE = [
   './manifest.json'
 ];
 
-// Instalação do Service Worker
+// Normaliza URLs para casar com as chaves do cache:
+//  - remove query string (ex.: ?v=123)
+//  - trata a raiz "/" como "/index.html" (navegação do app em https://localhost/)
+function normalizeUrl(url) {
+  const u = new URL(url);
+  u.search = '';
+  const p = u.pathname;
+  if (p === '' || p === '/') u.pathname = '/index.html';
+  return u.href;
+}
+
+// Instalação resiliente: mesmo que um asset falhe, o Service Worker ativa.
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('Cache aberto com sucesso');
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(
+        ASSETS_TO_CACHE.map((asset) => {
+          const url = normalizeUrl(new URL(asset, self.location).href);
+          return cache.add(new Request(url, { cache: 'no-store' }));
+        })
+      ).then((results) => {
+        const ok = results.filter((r) => r.status === 'fulfilled').length;
+        console.log('dalbran SW: assets em cache ' + ok + '/' + results.length);
+      })
+    ).catch(() => {})
   );
   self.skipWaiting();
 });
 
-// Ativação e limpeza de caches antigos
+// Ativação: limpa caches antigos e assume o controle imediatamente.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME && cache !== UPDATE_CACHE) {
-            return caches.delete(cache);
-          }
-        })
-      );
-    })
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((k) => k !== CACHE_NAME && k !== UPDATE_CACHE).map((k) => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // Interceptação de requisições
@@ -57,42 +70,49 @@ self.addEventListener('fetch', (event) => {
   // 1. Só faz cache de requisições GET (ignora POST, PUT, DELETE do Firebase)
   if (event.request.method !== 'GET') return;
 
-  // 2. Ignora requisições para APIs do Firebase ou extensões
   const url = event.request.url;
+
+  // 2. Ignora APIs do Firebase, extensões e o próprio Service Worker
   if (url.includes('firestore.googleapis.com') || url.includes('identitytoolkit') || url.includes('chrome-extension')) {
     return;
   }
 
-  event.respondWith(
-    // 3. Prioriza arquivos da atualização modular (escritos pelo update-checker)
-    caches.open(UPDATE_CACHE)
-      .then((updateCache) => updateCache.match(event.request))
-      .then((updatedResponse) => {
-        if (updatedResponse) {
-          return updatedResponse;
-        }
-        // 4. Depois o cache principal (offline-first)
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          return fetch(event.request).then((response) => {
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            // Não armazena o manifest de versão (é atualizado a cada build)
-            if (url.includes('versao.json')) {
-              return response;
-            }
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-            return response;
-          }).catch(() => {
-            // Retorna fallback offline se necessário
-          });
-        });
-      })
-  );
+  const normalized = normalizeUrl(url);
+
+  // sw.js nunca vem do cache (evita shadowing da atualização do SW)
+  if (normalized.endsWith('/sw.js')) {
+    event.respondWith((async () => {
+      try {
+        return await fetch(event.request);
+      } catch (e) {
+        const c = await caches.match(new Request(normalized));
+        return c || Response.error();
+      }
+    })());
+    return;
+  }
+
+  event.respondWith((async () => {
+    // 3. Prioriza os arquivos da atualização modular (escritos pelo update-checker)
+    const updateCache = await caches.open(UPDATE_CACHE);
+    const updated = await updateCache.match(new Request(normalized));
+    if (updated) return updated;
+
+    // 4. Depois o cache principal (offline-first)
+    const mainCache = await caches.open(CACHE_NAME);
+    const cached = await mainCache.match(new Request(normalized));
+    if (cached) return cached;
+
+    // 5. Rede — e atualiza o cache principal
+    try {
+      const res = await fetch(event.request);
+      if (res && res.status === 200 && res.type === 'basic' && !normalized.includes('versao.json')) {
+        mainCache.put(new Request(normalized), res.clone()).catch(() => {});
+      }
+      return res;
+    } catch (e) {
+      const fallback = await caches.match(event.request);
+      return fallback || Response.error();
+    }
+  })());
 });

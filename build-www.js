@@ -61,8 +61,8 @@ console.log('www/ directory updated successfully.');
 const crypto = require('crypto');
 
 // Versão do APK — MANTER em sincronia com android/app/build.gradle
-const APK_NAME = '0.0.7';
-const APK_CODE = 7;
+const APK_NAME = '0.0.8';
+const APK_CODE = 8;
 
 // Arquivos da camada web (atualização modular)
 const WEB_FILES = [

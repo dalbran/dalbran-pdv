@@ -1,6 +1,6 @@
 {
   "name": "dalbran-distribuidora",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Sistema PWA de Gestão de Catálogo e Orçamentos",
   "main": "index.html",
   "scripts": {
