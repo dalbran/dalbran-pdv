@@ -25,8 +25,8 @@
 
   // Versão atual do app — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.8',
-    code: 8
+    name: '0.0.9',
+    code: 9
   };
 
   let config = {

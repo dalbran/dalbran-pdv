@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dalbran-cache-v11';
+const CACHE_NAME = 'dalbran-cache-v12';
 const UPDATE_CACHE = 'dalbran-update-cache-v2';
 const ASSETS_TO_CACHE = [
   './',
