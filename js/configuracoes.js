@@ -44,7 +44,7 @@ let currentSettings = {
   updateCheckOnStart: true,
   updateCheckWeb: true,
   updateCheckApk: true,
-  updateIntervalMinutes: 240
+  updateIntervalMinutes: 0
 };
 window.operatorsCache = [];
 
@@ -292,7 +292,7 @@ function renderSettingsView() {
             <div class="form-group"><label>Canal de atualização</label><select id="set-updateChannel"><option value="stable" ${(currentSettings.updateChannel || 'stable') === 'stable' ? 'selected' : ''}>Estável (stable)</option><option value="beta" ${currentSettings.updateChannel === 'beta' ? 'selected' : ''}>Beta</option></select></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;">
-            <div class="form-group"><label>Intervalo (minutos)</label><input type="number" step="1" inputmode="numeric" pattern="[0-9]*" id="set-updateIntervalMinutes" value="${currentSettings.updateIntervalMinutes || 240}" data-numeric-only="int"></div>
+            <div class="form-group"><label>Intervalo (minutos) — 0 = somente ao abrir</label><input type="number" step="1" inputmode="numeric" pattern="[0-9]*" id="set-updateIntervalMinutes" value="${currentSettings.updateIntervalMinutes || 0}" data-numeric-only="int"></div>
             <div style="display:flex;gap:1.2rem;flex-wrap:wrap;align-items:center;margin-top:1.4rem;">
               <label><input id="set-updateCheckOnStart" type="checkbox" ${currentSettings.updateCheckOnStart !== false ? 'checked' : ''}> Verificar ao iniciar</label>
               <label><input id="set-updateCheckWeb" type="checkbox" ${currentSettings.updateCheckWeb !== false ? 'checked' : ''}> Atualização web modular</label>
@@ -473,7 +473,7 @@ function bindSettingsFormEvent() {
       updateCheckOnStart: document.getElementById('set-updateCheckOnStart').checked,
       updateCheckWeb: document.getElementById('set-updateCheckWeb').checked,
       updateCheckApk: document.getElementById('set-updateCheckApk').checked,
-      updateIntervalMinutes: parseInt(document.getElementById('set-updateIntervalMinutes').value, 10) || 240,
+      updateIntervalMinutes: parseInt(document.getElementById('set-updateIntervalMinutes').value, 10) || 0,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 

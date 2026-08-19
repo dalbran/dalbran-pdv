@@ -26,13 +26,13 @@
   };
 
   let config = {
-    manifestUrl: '',
-    apkUrl: '',
+    manifestUrl: 'https://dalbran.github.io/dalbran-pdv/versao.json',
+    apkUrl: 'https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk',
     channel: 'stable',       // stable | beta
     checkOnStart: true,
     checkWeb: true,
     checkApk: true,
-    intervalMinutes: 240
+    intervalMinutes: 0       // 0 = verificar somente ao abrir o app (após fechar)
   };
 
   let state = { webVersion: '', webFiles: {}, apkCode: 0, lastCheck: 0, lastResult: '', lastManifestVersion: '' };
@@ -248,9 +248,43 @@
     APP_VERSION,
     config,
     checkNow: () => checkNow({ silent: false }),
+    runStartupCheck,
     currentState: () => state
   };
   window.checkAppUpdates = () => checkNow({ silent: false });
+
+  // ---------------------------------------------------------------
+  // Tela de loading na abertura do app
+  // ---------------------------------------------------------------
+  function setSplashMessage(msg) {
+    try {
+      const el = document.getElementById('splash-status-msg');
+      if (el) el.textContent = msg;
+    } catch (e) {}
+  }
+
+  async function runStartupCheck() {
+    window.__updateStartupPending = true;
+    if (!config.checkOnStart) {
+      window.__updateStartupPending = false;
+      try { window.dismissSplashScreen(); } catch (e) {}
+      return;
+    }
+    setSplashMessage('Verificando atualizações...');
+    let updated = false;
+    try {
+      const res = await checkNow({ silent: true });
+      updated = !!(res && res.updated);
+    } catch (e) {}
+    if (updated) {
+      // Atualização aplicada — a página será recarregada; a splash fica visível
+      // até o novo carregamento terminar (sem flash de tela branca).
+      setSplashMessage('Atualizando sistema...');
+      return;
+    }
+    window.__updateStartupPending = false;
+    try { window.dismissSplashScreen(); } catch (e) {}
+  }
 
   // ---------------------------------------------------------------
   // Inicialização
@@ -259,17 +293,15 @@
     loadState();
     await loadConfigFromFirestore();
 
-    if (config.checkOnStart) {
-      setTimeout(() => checkNow({ silent: true }), 4000);
-    }
+    await runStartupCheck();
     if (config.intervalMinutes > 0) {
       setInterval(() => checkNow({ silent: true }), Math.max(10, config.intervalMinutes) * 60 * 1000);
     }
-    window.addEventListener('focus', () => {
-      if (config.checkOnStart && Date.now() - state.lastCheck > 15 * 60 * 1000) {
-        checkNow({ silent: true });
-      }
-    });
+    // Trava de segurança: nunca deixar a tela de loading eterna
+    setTimeout(() => {
+      window.__updateStartupPending = false;
+      try { window.dismissSplashScreen(); } catch (e) {}
+    }, 15000);
   }
 
   document.addEventListener('DOMContentLoaded', init);

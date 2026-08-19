@@ -13,14 +13,17 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNumericInputsEnforcement();
   window.updateAppStatusBar('view-dashboard');
   
-  // Timeout de garantia para dispensar o Splash Screen caso o Firebase demore
+  // Timeout de garantia: libera a splash mesmo se algo travar
   setTimeout(() => {
+    window.__updateStartupPending = false;
     window.dismissSplashScreen();
-  }, 1800);
+  }, 15000);
 });
 
 // Dispensar Splash / Loading Screen
 window.dismissSplashScreen = function() {
+  // Aguarda a verificação de atualização na inicialização (sem tela branca)
+  if (window.__updateStartupPending) return;
   const splash = document.getElementById('app-splash-screen');
   if (splash) {
     splash.classList.add('fade-out');

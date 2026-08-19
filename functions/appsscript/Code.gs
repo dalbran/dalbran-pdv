@@ -92,10 +92,9 @@ function doPost(e) {
 // ---------------------------------------------------------------
 
 function reply_(status, body) {
-  return ContentService
-    .createTextOutput(JSON.stringify(body))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setStatusCode?.(status);
+  var out = ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
+  try { out.setStatusCode(status); } catch (e) {}
+  return out;
 }
 
 function getOwnerEmail_() {
