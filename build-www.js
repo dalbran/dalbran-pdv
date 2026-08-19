@@ -20,6 +20,7 @@ const ignoreList = [
   'functions',
   'firebase.json',
   'data',
+  'web-main.tar',
   'c9abbc35-29de-439d-800b-34e62aeb484d.png',
   'defd3f1d-5261-4712-b66f-915baccdd1f0.png'
 ];
@@ -47,6 +48,9 @@ function copyRecursiveSync(src, dest) {
 
 console.log('Syncing root files to www/...');
 copyRecursiveSync(srcDir, destDir);
+// O www/ é publicado no GitHub Pages — TODOS os arquivos (inclusive
+// versao.json) precisam ser versionados. O .gitignore da raiz não se aplica aqui.
+fs.writeFileSync(path.join(destDir, '.gitignore'), '# GitHub Pages — publicar todos os arquivos gerados\n');
 console.log('www/ directory updated successfully.');
 
 // ============================================================================
