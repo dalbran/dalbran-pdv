@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dalbran · Área de APIs</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <link rel="stylesheet" href="css/api-admin.css">
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
+</head>
+<body>
+
+  <!-- ============================================================
+       Topbar
+       ============================================================ -->
+  <div class="api-shell">
+
+    <header class="api-topbar">
+      <div class="api-topbar-brand">
+        <div class="api-topbar-logo"><i class="ph ph-plugs-connected" aria-hidden="true"></i></div>
+        <div>
+          <h1>Área de APIs</h1>
+          <p>Integrações da Dalbran Distribuidora</p>
+        </div>
+      </div>
+      <div class="api-topbar-actions">
+        <span class="api-btn api-btn-ghost" id="api-role-badge">master</span>
+        <button type="button" class="api-btn" id="api-btn-theme"><i class="ph ph-moon-stars" aria-hidden="true"></i><span id="api-theme-label">Tema</span></button>
+        <button type="button" class="api-btn" id="api-btn-back"><i class="ph ph-arrow-left" aria-hidden="true"></i> Voltar</button>
+        <button type="button" class="api-btn api-btn-danger" id="api-btn-logout"><i class="ph ph-sign-out" aria-hidden="true"></i> Sair</button>
+      </div>
+    </header>
+
+    <!-- ============================================================
+         Tela de Login (Firebase Auth)
+         ============================================================ -->
+    <section class="api-gate" id="api-login-screen">
+      <div class="api-gate-logo"><i class="ph ph-user-circle" aria-hidden="true"></i></div>
+      <h2>Autenticação obrigatória</h2>
+      <p>Acesse com sua conta da Dalbran para gerenciar as integrações.</p>
+      <div class="api-error" id="api-login-error" style="display:none;"></div>
+      <form id="api-login-form">
+        <div class="api-field">
+          <label for="api-login-email">E-mail</label>
+          <input type="email" id="api-login-email" autocomplete="email" placeholder="seu@email.com" required>
+        </div>
+        <div class="api-field">
+          <label for="api-login-password">Senha</label>
+          <input type="password" id="api-login-password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="api-btn api-btn-primary"><i class="ph ph-sign-in" aria-hidden="true"></i> Entrar</button>
+      </form>
+      <div class="api-gate-footer">Apenas usuários master têm acesso à área de APIs.</div>
+    </section>
+
+    <!-- ============================================================
+         Chave Secreta (camada extra de proteção)
+         ============================================================ -->
+    <section class="api-gate" id="api-secret-screen" style="display:none;">
+      <div class="api-gate-logo"><i class="ph ph-shield-check" aria-hidden="true"></i></div>
+      <h2 id="api-secret-title">Acesso protegido</h2>
+      <p id="api-secret-subtitle">Informe a chave secreta para continuar.</p>
+      <form id="api-secret-form">
+        <div class="api-field">
+          <label for="api-secret-input">Chave secreta</label>
+          <input type="password" id="api-secret-input" autocomplete="new-password" placeholder="••••••••••••" required>
+        </div>
+        <button type="submit" class="api-btn api-btn-primary" id="api-secret-action"><i class="ph ph-unlock" aria-hidden="true"></i> Desbloquear</button>
+      </form>
+      <div class="api-gate-footer" id="api-secret-setup" style="display:none;">
+        Primeiro acesso: defina a chave que protegerá esta área. Ela será salva com hash seguro no banco.
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Área Principal (gerenciamento de integrações)
+         ============================================================ -->
+    <main id="api-main-screen" style="display:none;">
+      <div class="api-section-title"><i class="ph ph-puzzle-piece" aria-hidden="true"></i> Integrações disponíveis</div>
+      <div class="api-grid" id="api-integrations-grid"></div>
+
+      <div style="margin-top:24px; padding:14px 16px; border:1px dashed var(--api-border); border-radius:var(--api-radius); font-size:.76rem; color:var(--api-muted); background:var(--api-card);">
+        <strong style="display:block; margin-bottom:4px;">Segurança</strong>
+        As credenciais são armazenadas no Firestore (protegido por regras de servidor) e exibidas sempre mascaradas.
+        Nenhuma chave é gravada no HTML ou no código do aplicativo.
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ============================================================
+       Modal de configuração de credenciais
+       ============================================================ -->
+  <div class="api-modal-backdrop" id="api-modal-backdrop">
+    <div class="api-modal" role="dialog" aria-modal="true">
+      <h3 id="api-modal-title">Configurar integração</h3>
+      <p id="api-modal-subtitle"></p>
+      <div id="api-modal-body"></div>
+      <div class="api-modal-actions">
+        <button type="button" class="api-btn api-btn-danger" id="api-modal-delete"><i class="ph ph-trash" aria-hidden="true"></i> Remover</button>
+        <button type="button" class="api-btn" id="api-modal-cancel">Cancelar</button>
+        <button type="button" class="api-btn api-btn-primary" id="api-modal-save"><i class="ph ph-check" aria-hidden="true"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="api-toast" id="api-toast"></div>
+
+  <script src="js/firebase.js"></script>
+  <script src="js/drive-backup.js"></script>
+  <script src="API.conf"></script>
+  <script src="js/api-admin.js"></script>
+</body>
+</html>

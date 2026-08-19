@@ -1,0 +1,43 @@
+# Node
+node_modules/
+package-lock.json
+
+# Build Android (Capacitor)
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/res/drawable*/capacitor*
+android/app/src/main/res/values/*.xml
+android/app/src/main/res/mipmap-*/capacitor*
+
+# Gerado pelo build
+www/
+versao.json
+
+# APKs / releases
+apk-releases/
+releases/
+extracted_icons/
+*.apk
+*.zip
+
+# Backend (functions) deps
+functions/node_modules/
+
+# Ferramentas
+.vscode/
+.gemini/
+.DS_Store
+
+# Temporários
+*.log
+c9abbc35-29de-439d-800b-34e62aeb484d.png
+defd3f1d-5261-4712-b66f-915baccdd1f0.png
+web-main.tar
+
+# Backups/exportações com dados da empresa (não versionar)
+data/dalbran-backup-*.json
+data/import*.json

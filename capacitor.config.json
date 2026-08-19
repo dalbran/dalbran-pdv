@@ -1,0 +1,27 @@
+{
+  "appId": "com.dalbran.distribuidora",
+  "appName": "Dalbran PRO",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#0f172a",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#ffffff"
+    }
+  }
+}

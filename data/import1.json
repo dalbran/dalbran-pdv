@@ -1,0 +1,202 @@
+import json
+
+produtos = [
+    {
+        "nome": "Cloro", "categoria": "Limpeza Geral", "descricao": "Cloro para limpeza e higienização.",
+        "ativo": True, "variacoes": [
+            {"volume": "2 Litros", "precoAtacado": 2.90, "precoVarejo": 3.50, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 7.50, "precoVarejo": 7.50, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Desinfetante", "categoria": "Limpeza Geral", "descricao": "Desinfetante para limpeza, higienização e perfumação de ambientes e superfícies.",
+        "ativo": True, "variacoes": [
+            {"volume": "2 Litros", "precoAtacado": 2.80, "precoVarejo": 3.50,
+             "fragrancias": ["Pinho Vert", "Floral", "Talco", "Violeta", "Jasmin", "Eucalipto", "Violece", "Zix", "Lavanda"]},
+            {"volume": "5 Litros", "precoAtacado": 11.70, "precoVarejo": 15.00,
+             "fragrancias": ["Pinho Vert", "Floral", "Talco", "Violeta", "Jasmin", "Eucalipto", "Violece", "Zix", "Lavanda"]}
+        ]
+    },
+    {
+        "nome": "Desinfetante Concentrado", "categoria": "Limpeza Geral",
+        "descricao": "Desinfetante de alta rentabilidade. Diluído em água, 100ml rende até 5 litros de desinfetante.",
+        "ativo": True, "variacoes": [
+            {"volume": "100ml", "precoAtacado": 4.80, "precoVarejo": 8.00,
+             "fragrancias": ["Lavanda", "Gleyde", "Marinho", "Mirra", "Kaiak", "Violeta", "Palmolive", "Primavera", "Dama da Noite", "Geovana Baby", "Flores do Campo", "Citrus", "Lavanda Oriente"]}
+        ]
+    },
+    {
+        "nome": "Detergente", "categoria": "Cozinha", "descricao": "Detergente líquido para limpeza de louças e utensílios.",
+        "ativo": True, "variacoes": [
+            {"volume": "2 Litros", "precoAtacado": 6.20, "precoVarejo": 9.00, "fragrancias": ["Neutro", "Maçã", "Coco", "Limão"]},
+            {"volume": "5 Litros", "precoAtacado": 16.50, "precoVarejo": 18.00, "fragrancias": ["Neutro", "Maçã", "Coco", "Limão"]}
+        ]
+    },
+    {
+        "nome": "Amaciante de Roupas", "categoria": "Lavanderia",
+        "descricao": "Deixa os tecidos com toque aveludado, macios ao toque e perfumados por muito mais tempo.",
+        "ativo": True, "variacoes": [
+            {"volume": "2 Litros", "precoAtacado": 3.10, "precoVarejo": 4.50, "fragrancias": ["Lavanda", "Floral", "Amacipex"]},
+            {"volume": "5 Litros", "precoAtacado": 12.20, "precoVarejo": 15.00, "fragrancias": ["Lavanda", "Floral", "Amacipex"]}
+        ]
+    },
+    {
+        "nome": "Sabão de Roupas Roupex", "categoria": "Lavanderia",
+        "descricao": "Sabão líquido para lavagem de roupas.",
+        "ativo": True, "variacoes": [
+            {"volume": "2 Litros", "precoAtacado": 8.50, "precoVarejo": 12.00, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 25.00, "precoVarejo": 30.00, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Multlimp (Multiuso)", "categoria": "Limpeza Geral", "descricao": "Produto multiuso para limpeza de diversas superfícies.",
+        "ativo": True, "variacoes": [
+            {"volume": "2 Litros", "precoAtacado": 5.20, "precoVarejo": 6.50, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 14.70, "precoVarejo": 16.50, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Sabonete Líquido Perolado", "categoria": "Higiene", "descricao": "Sabonete líquido perolado para higiene das mãos e corpo.",
+        "ativo": True, "variacoes": [
+            {"volume": "2 Litros", "precoAtacado": 12.30, "precoVarejo": 15.00, "fragrancias": ["Florence", "Violeta", "Erva Doce"]},
+            {"volume": "5 Litros", "precoAtacado": 21.80, "precoVarejo": 30.00, "fragrancias": ["Florence", "Violeta", "Erva Doce"]}
+        ]
+    },
+    {
+        "nome": "Hipoclorito de Sódio", "categoria": "Limpeza Geral", "descricao": "Hipoclorito de sódio para limpeza e higienização.",
+        "ativo": True, "variacoes": [
+            {"volume": "500ml", "precoAtacado": 3.80, "precoVarejo": 6.20, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 31.50, "precoVarejo": 32.50, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Desengraxante SJMult", "categoria": "Limpeza Específica", "descricao": "Desengraxante para remoção de sujeiras e graxas.",
+        "ativo": True, "variacoes": [
+            {"volume": "1 Litro", "precoAtacado": 6.20, "precoVarejo": None, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 0.00, "precoVarejo": None, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Shampoo Auto HS200", "categoria": "Automotivo", "descricao": "Shampoo para limpeza automotiva.",
+        "ativo": True, "variacoes": [
+            {"volume": "1 Litro", "precoAtacado": 6.80, "precoVarejo": 10.00, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 25.00, "precoVarejo": 25.00, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Aromatizante de Ambiente", "categoria": "Aromatizantes", "descricao": "Aromatizante para perfumar ambientes.",
+        "ativo": True, "variacoes": [
+            {"volume": "60ml", "precoAtacado": 6.00, "precoVarejo": 10.00,
+             "fragrancias": ["Tutty Fruty", "Violeta", "Carro Novo", "Couro"]}
+        ]
+    },
+    {
+        "nome": "Abrilhantador RB100", "categoria": "Limpeza Específica", "descricao": "Abrilhantador para dar brilho e acabamento às superfícies.",
+        "ativo": True, "variacoes": [
+            {"volume": "1 Litro", "precoAtacado": 7.50, "precoVarejo": 12.00, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 38.00, "precoVarejo": 38.00, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "SAMPIN", "categoria": "Limpeza Específica", "descricao": "Produto de limpeza SAMPIN.",
+        "ativo": True, "variacoes": [
+            {"volume": "1 Litro", "precoAtacado": 8.00, "precoVarejo": 10.00, "fragrancias": []},
+            {"volume": "5 Litros", "precoAtacado": 35.00, "precoVarejo": 45.00, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Cera Líquida WaxEx400 C", "categoria": "Limpeza Específica", "descricao": "Cera líquida para limpeza, proteção e brilho.",
+        "ativo": True, "variacoes": [
+            {"volume": "1 Litro", "precoAtacado": 5.90, "precoVarejo": None, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Papel Higiênico", "categoria": "Higiene", "descricao": "Papel higiênico para uso doméstico.",
+        "ativo": True, "variacoes": [
+            {"volume": "12 rolos", "precoAtacado": 0.00, "precoVarejo": None, "fragrancias": []},
+            {"volume": "4 rolos", "precoAtacado": 0.00, "precoVarejo": None, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Papel Higiênico institucional", "categoria": "Higiene", "descricao": "Papel higiênico institucional.",
+        "ativo": True, "variacoes": [
+            {"volume": "8 rolos", "precoAtacado": 38.00, "precoVarejo": None, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Pregador", "categoria": "Utilidades", "descricao": "Pregadores para roupas.",
+        "ativo": True, "variacoes": [
+            {"volume": "12 unidades", "precoAtacado": 2.50, "precoVarejo": None, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Pacote de Pregadores", "categoria": "Utilidades", "descricao": "Pacote com 10 conjuntos de 12 pregadores.",
+        "ativo": True, "variacoes": [
+            {"volume": "10 × 12 unidades", "precoAtacado": 25.80, "precoVarejo": None, "fragrancias": []}
+        ]
+    },
+    {
+        "nome": "Esponja Bio Odor", "categoria": "Utilidades", "descricao": "Esponja para limpeza.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 3.80, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Esponja Wish", "categoria": "Utilidades", "descricao": "Esponja para limpeza.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 1.50, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Esponja Brasileirinha", "categoria": "Utilidades", "descricao": "Esponja para limpeza.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 1.00, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Varal", "categoria": "Utilidades", "descricao": "Varal para uso doméstico.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 3.00, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Sabão em Barra", "categoria": "Lavanderia", "descricao": "Sabão em barra para limpeza.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 4.20, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Sabão de Coco", "categoria": "Lavanderia", "descricao": "Sabão de coco em barra para limpeza.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 2.50, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Escova de Roupa", "categoria": "Utilidades", "descricao": "Escova para lavagem de roupas.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 0.00, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Cif Multiuso Limpeza", "categoria": "Limpeza Geral", "descricao": "Produto multiuso para limpeza.",
+        "ativo": True, "variacoes": [{"volume": "250ml", "precoAtacado": 12.00, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Multiuso Veja Gold", "categoria": "Limpeza Geral", "descricao": "Multiuso para limpeza de superfícies.",
+        "ativo": True, "variacoes": [{"volume": "500ml", "precoAtacado": 3.80, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Cola Instantânea TEK BOND", "categoria": "Utilidades", "descricao": "Cola instantânea.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 9.99, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Querosene", "categoria": "Limpeza Específica", "descricao": "Querosene para limpeza e usos diversos.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 12.00, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Sabão Pasta Louça", "categoria": "Cozinha", "descricao": "Sabão em pasta para limpeza de louças.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 6.00, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Hipoclorito", "categoria": "Limpeza Geral", "descricao": "Hipoclorito para limpeza e higienização.",
+        "ativo": True, "variacoes": [{"volume": "500ml", "precoAtacado": 5.30, "precoVarejo": None, "fragrancias": []}]
+    },
+    {
+        "nome": "Faísca", "categoria": "Limpeza Geral", "descricao": "Produto de limpeza Faísca.",
+        "ativo": True, "variacoes": [{"volume": "Unidade", "precoAtacado": 23.40, "precoVarejo": None, "fragrancias": []}]
+    }
+]
+
+# Validar e salvar como JSON UTF-8
+path = "/mnt/data/produtos_precos.json"
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(produtos, f, ensure_ascii=False, indent=2)
+
+print(f"Arquivo criado: {path}")
+print(f"Produtos: {len(produtos)}")

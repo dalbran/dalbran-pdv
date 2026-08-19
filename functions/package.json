@@ -1,0 +1,19 @@
+{
+  "name": "dalbran-functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend das integrações da Dalbran — OAuth do Google Drive e backup automático.",
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.0",
+    "firebase-functions": "^4.9.0",
+    "googleapis": "^133.0.0"
+  }
+}

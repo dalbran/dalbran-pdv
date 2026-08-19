@@ -1,0 +1,96 @@
+[
+  {
+    "nome": "Desinfetante Concentrado",
+    "categoria": "Limpeza Geral",
+    "descricao": "Desinfetante de alto rendimento para superfícies e pisos.",
+    "ativo": true,
+    "variacoes": [
+      {
+        "volume": "2 Litros",
+        "precoAtacado": 8.50,
+        "precoVarejo": 12.00,
+        "fragrancias": ["Lavanda", "Floral", "Talco", "Pinho"]
+      },
+      {
+        "volume": "5 Litros",
+        "precoAtacado": 18.00,
+        "precoVarejo": 25.00,
+        "fragrancias": ["Lavanda", "Floral", "Eucalipto"]
+      }
+    ]
+  },
+  {
+    "nome": "Detergente Neutro",
+    "categoria": "Cozinha",
+    "descricao": "Detergente líquido concentrado para louças e utensílios.",
+    "ativo": true,
+    "variacoes": [
+      {
+        "volume": "500ml",
+        "precoAtacado": 2.20,
+        "precoVarejo": 3.50,
+        "fragrancias": ["Neutro", "Maçã", "Limão"]
+      },
+      {
+        "volume": "5 Litros",
+        "precoAtacado": 15.00,
+        "precoVarejo": 22.00,
+        "fragrancias": ["Neutro"]
+      }
+    ]
+  },
+  {
+    "nome": "Amaciante de Roupas",
+    "categoria": "Lavanderia",
+    "descricao": "Amaciante para tecidos com ação amaciante e perfume duradouro.",
+    "ativo": true,
+    "variacoes": [
+      {
+        "volume": "2 Litros",
+        "precoAtacado": 9.90,
+        "precoVarejo": 14.50,
+        "fragrancias": ["Azul Clássico", "Achego", "Flores do Campo"]
+      },
+      {
+        "volume": "5 Litros",
+        "precoAtacado": 21.00,
+        "precoVarejo": 30.00,
+        "fragrancias": ["Azul Clássico", "Achego"]
+      }
+    ]
+  },
+  {
+    "nome": "Sabão Líquido Lava-Roupas",
+    "categoria": "Lavanderia",
+    "descricao": "Sabão líquido para lavagem de roupas brancas e coloridas.",
+    "ativo": true,
+    "variacoes": [
+      {
+        "volume": "3 Litros",
+        "precoAtacado": 16.50,
+        "precoVarejo": 23.90,
+        "fragrancias": ["Tradicional", "Coco"]
+      },
+      {
+        "volume": "5 Litros",
+        "precoAtacado": 24.00,
+        "precoVarejo": 35.00,
+        "fragrancias": ["Tradicional"]
+      }
+    ]
+  },
+  {
+    "nome": "Lustra Móveis",
+    "categoria": "Limpeza Específica",
+    "descricao": "Protege e dá brilho em móveis de madeira e superfícies laminadas.",
+    "ativo": true,
+    "variacoes": [
+      {
+        "volume": "500ml",
+        "precoAtacado": 6.80,
+        "precoVarejo": 9.90,
+        "fragrancias": ["Lavanda", "Jasmim"]
+      }
+    ]
+  }
+]
