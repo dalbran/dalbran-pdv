@@ -97,7 +97,12 @@ function generateManifest() {
     .filter(f => fs.existsSync(path.join(destDir, f)))
     .map(f => ({ path: f, sha256: fileSha256(path.join(destDir, f)) }));
 
-  let apk = { name: APK_NAME, code: APK_CODE, url: '', sha256: '' };
+  let apk = {
+    name: APK_NAME,
+    code: APK_CODE,
+    url: `https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk`,
+    sha256: ''
+  };
   const apkPath = path.join(__dirname, 'apk-releases', `Dalbran-v${APK_NAME}.apk`);
   if (fs.existsSync(apkPath)) {
     apk.sha256 = fileSha256(apkPath);
