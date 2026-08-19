@@ -61,8 +61,8 @@ console.log('www/ directory updated successfully.');
 const crypto = require('crypto');
 
 // Versão do APK — MANTER em sincronia com android/app/build.gradle
-const APK_NAME = '0.0.9';
-const APK_CODE = 9;
+const APK_NAME = '0.0.10';
+const APK_CODE = 10;
 
 // Arquivos da camada web (atualização modular)
 const WEB_FILES = [
@@ -105,12 +105,19 @@ function generateManifest() {
   let apk = {
     name: APK_NAME,
     code: APK_CODE,
-    url: `https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk`,
+    url: `https://dalbran.github.io/dalbran-pdv/apk/Dalbran-v{VERSION}.apk`,
+    fallbackUrl: `https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk`,
     sha256: ''
   };
   const apkPath = path.join(__dirname, 'apk-releases', `Dalbran-v${APK_NAME}.apk`);
   if (fs.existsSync(apkPath)) {
     apk.sha256 = fileSha256(apkPath);
+    // Publica o APK também no GitHub Pages (mesmo domínio do versao.json),
+    // pois algumas redes bloqueiam downloads diretos de github.com/releases.
+    const apkDestDir = path.join(destDir, 'apk');
+    fs.mkdirSync(apkDestDir, { recursive: true });
+    fs.copyFileSync(apkPath, path.join(apkDestDir, `Dalbran-v${APK_NAME}.apk`));
+    console.log(`APK copiado para www/apk/Dalbran-v${APK_NAME}.apk`);
   }
 
   const manifest = {

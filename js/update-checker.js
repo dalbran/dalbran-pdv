@@ -25,8 +25,8 @@
 
   // Versão atual do app — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.9',
-    code: 9
+    name: '0.0.10',
+    code: 10
   };
 
   let config = {
@@ -218,6 +218,7 @@
       const apkAvailable = !!(config.checkApk && manifest.apk &&
         manifest.apk.code > APP_VERSION.code && manifest.apk.code > state.apkCode);
       const apkUrl = ((manifest.apk && (manifest.apk.url || config.apkUrl)) || '').replace('{VERSION}', (manifest.apk && manifest.apk.name) || '');
+      const apkFallbackUrl = ((manifest.apk && manifest.apk.fallbackUrl) || '').replace('{VERSION}', (manifest.apk && manifest.apk.name) || '');
       const hasUpdate = webChanged || apkAvailable;
 
       // Versão que o usuário já dispensou ("Agora não") — não re-avisar
@@ -230,16 +231,16 @@
         if (webChanged) emitProgress(changed.length + ' arquivo(s) web alterado(s) — atualização disponível.', 'info');
         if (apkAvailable) emitProgress('Novo APK disponível: v' + manifest.apk.name + ' (code ' + manifest.apk.code + ').', 'success');
 
-        if (opts.showModal !== false) {
-          if (!dismissed || opts.force) {
-            if (dismissed && opts.force) state.dismissedVersion = '';
-            showUpdateModal({ manifest, changed, webChanged, apkAvailable, apkUrl });
-          } else {
-            emitProgress('Atualização ' + manifest.version + ' já avisada anteriormente (dispensada) — ignorando.', 'info');
+if (opts.showModal !== false) {
+            if (!dismissed || opts.force) {
+              if (dismissed && opts.force) state.dismissedVersion = '';
+              showUpdateModal({ manifest, changed, webChanged, apkAvailable, apkUrl, apkFallbackUrl });
+            } else {
+              emitProgress('Atualização ' + manifest.version + ' já avisada anteriormente (dispensada) — ignorando.', 'info');
+            }
+          } else if (apkAvailable) {
+            showApkUpdate(manifest.apk, apkUrl, apkFallbackUrl);
           }
-        } else if (apkAvailable) {
-          showApkUpdate(manifest.apk, apkUrl);
-        }
       } else {
         // tudo em dia
         state.webVersion = manifest.version;
@@ -347,7 +348,7 @@
   // ---------------------------------------------------------------
   // APK interno (download + instalação via plugin nativo)
   // ---------------------------------------------------------------
-  async function installApkInternal(url, apk) {
+  async function installApkInternal(url, apk, fallbackUrl) {
     const P = window.Capacitor && window.Capacitor.Plugins;
     const Inst = P && P.ApkInstaller;
     if (!Inst || !Inst.downloadApk || !Inst.installApk) {
@@ -363,9 +364,29 @@
     };
     let listener;
     try { listener = Inst.addListener('progress', onProgress); } catch (e) {}
+    const doDownload = async (u) => {
+      try {
+        return await Inst.downloadApk({ url: u, fileName });
+      } catch (err) {
+        const status = err && err.message && ('' + err.message).match(/HTTP\s+(\d+)/i);
+        throw { err: err, httpStatus: status ? parseInt(status[1], 10) : 0 };
+      }
+    };
     try {
       setModalStatus('Baixando APK ' + (apk.name || '') + '...', 'info');
-      const res = await Inst.downloadApk({ url, fileName });
+      let res;
+      try {
+        res = await doDownload(url);
+      } catch (d1) {
+        if (!fallbackUrl) throw d1.err;
+        emitProgress('Falha no download principal (' + (d1.err.message || 'erro') + '). Tentando servidor de backup...', 'info');
+        setModalStatus('Servidor principal indisponível — tentando backup...', 'info');
+        try {
+          res = await doDownload(fallbackUrl);
+        } catch (d2) {
+          throw d2.err;
+        }
+      }
       emitProgress('APK baixado (' + (res && res.size ? Math.round(res.size / 1048576) : '?') + ' MB).', 'success');
       setModalStatus('Iniciando instalação...', 'info');
       const ins = await Inst.installApk({ filePath: res.filePath });
@@ -374,6 +395,7 @@
         saveState();
         setModalStatus(ins.message || 'Habilite a instalação de apps desconhecidos e volte ao app para concluir.', 'error');
         emitProgress('Aguardando permissão de instalação do sistema.', 'error');
+        notify('Habilite "Instalar aplicativos desconhecidos" para o Dalbran e volte ao app.', 'info');
         return false;
       }
       emitProgress('Instalação iniciada pelo sistema Android.', 'success');
@@ -491,10 +513,11 @@
     } else {
       const apk = pendingManifest.apk;
       const url = ((apk && (apk.url || config.apkUrl)) || '').replace('{VERSION}', (apk && apk.name) || '');
+      const fallbackUrl = ((apk && apk.fallbackUrl) || '').replace('{VERSION}', (apk && apk.name) || '');
       if (!url) {
         setModalStatus('URL do APK não configurada.', 'error');
       } else {
-        await installApkInternal(url, apk);
+        await installApkInternal(url, apk, fallbackUrl);
       }
       if (now) now.disabled = false;
       return;
@@ -505,7 +528,7 @@
   // ---------------------------------------------------------------
   // Aviso de APK novo (atualização completa — alternativa ao modal)
   // ---------------------------------------------------------------
-  function showApkUpdate(apk, url) {
+  function showApkUpdate(apk, url, fallbackUrl) {
     let el = document.getElementById('apk-update-banner');
     if (!el) {
       el = document.createElement('div');
@@ -525,7 +548,7 @@
       document.body.appendChild(el);
       document.getElementById('apk-update-download').addEventListener('click', () => {
         if (url) {
-          installApkInternal(url, apk);
+          installApkInternal(url, apk, fallbackUrl);
         } else {
           notify('URL do APK não configurada. Adicione em Configurações → Atualizações.', 'error');
         }
@@ -564,6 +587,33 @@
       await checkNow({ silent: false, force: true });
     } catch (e) {
       notify('Falha ao verificar atualizações: ' + e.message, 'error');
+    }
+    document.body.classList.remove('update-checking');
+  };
+
+  // "Baixar e instalar APK" manual (Configurações → Atualizações)
+  window.downloadLatestApk = async function () {
+    const wrap = document.getElementById('update-check-log-wrap');
+    if (wrap) wrap.classList.remove('hidden');
+    document.body.classList.add('update-checking');
+    try {
+      if (!config.manifestUrl) throw new Error('Sem URL de manifest configurada.');
+      const sep = config.manifestUrl.includes('?') ? '&' : '?';
+      const manifest = await fetchJson(config.manifestUrl + sep + 't=' + Date.now());
+      const apk = manifest && manifest.apk;
+      if (!apk) throw new Error('Manifest sem APK.');
+      if (apk.code <= APP_VERSION.code) {
+        notify('O APK já está na versão mais recente (' + APP_VERSION.name + ').', 'info');
+        emitProgress('APK já na versão mais recente (' + APP_VERSION.name + ').', 'info');
+        return;
+      }
+      const url = (apk.url || config.apkUrl || '').replace('{VERSION}', apk.name || '');
+      const fallbackUrl = (apk.fallbackUrl || '').replace('{VERSION}', apk.name || '');
+      emitProgress('Baixando e instalando APK v' + (apk.name || '') + ' manualmente...', 'info');
+      await installApkInternal(url, apk, fallbackUrl);
+    } catch (e) {
+      notify('Falha ao baixar/instalar o APK: ' + e.message, 'error');
+      emitProgress('ERRO no APK: ' + e.message, 'error');
     }
     document.body.classList.remove('update-checking');
   };
