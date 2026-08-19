@@ -19,6 +19,7 @@ const ignoreList = [
   'extracted_icons',
   'functions',
   'firebase.json',
+  'data',
   'c9abbc35-29de-439d-800b-34e62aeb484d.png',
   'defd3f1d-5261-4712-b66f-915baccdd1f0.png'
 ];

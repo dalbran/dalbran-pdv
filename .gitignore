@@ -41,3 +41,5 @@ web-main.tar
 # Backups/exportações com dados da empresa (não versionar)
 data/dalbran-backup-*.json
 data/import*.json
+data/produtos_dalbran.json
+data/produtos-iniciais.json
