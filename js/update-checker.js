@@ -93,6 +93,26 @@
   // ---------------------------------------------------------------
   function loadState() {
     try { state = { ...state, ...(JSON.parse(localStorage.getItem(LS_KEY) || '{}')) }; } catch (e) {}
+    // Migração de estados antigos (pré-1.0.0): o sistema antigo gravava
+    // webVersion/webFiles SEM webCode. Sem registro de ativação modular
+    // confirmada (webCode=0), esse estado não é confiável — zera para
+    // restabelecer a linha de base a partir da versão realmente EMBUTIDA
+    // no APK em execução (a comparação por hash volta a funcionar).
+    if (!state.webCode && (state.webVersion || Object.keys(state.webFiles).length)) {
+      state.webVersion = '';
+      state.webFiles = {};
+      state.apkCode = 0;
+      state.dismissedVersion = '';
+      state.dismissedApk = 0;
+      state.pendingConfirmation = false;
+      state.applyAttempts = 0;
+      state.webUpdateBlocked = false;
+      state.prevWebCode = 0;
+      state.prevWebVersion = '';
+      state.prevWebFiles = {};
+      state.prevCacheName = '';
+      diag('Estado antigo de atualização migrado (sem webCode) — linha de base restabelecida.', 'info');
+    }
   }
   function saveState() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
@@ -1162,6 +1182,27 @@
         }).catch(() => {});
       }
     }
+  };
+
+  // Diagnóstico completo (estado + versões em execução + últimas linhas do log)
+  window.showUpdateDiagnostics = function () {
+    try {
+      const info = {
+        runningWeb: { name: runningWebVersion(), code: runningWebCode() },
+        bundledNative: { name: APP_VERSION.name, code: APP_VERSION.code },
+        state,
+        diag: getDiagnostics().slice(-30)
+      };
+      const text = JSON.stringify(info, null, 2);
+      const log = document.getElementById('update-check-log');
+      const wrap = document.getElementById('update-check-log-wrap');
+      if (log && wrap) {
+        log.textContent = text;
+        wrap.classList.remove('hidden');
+        return;
+      }
+      notify('Abra Configurações → Atualizações para ver o diagnóstico.', 'info');
+    } catch (e) {}
   };
 
   // ---------------------------------------------------------------
