@@ -118,6 +118,14 @@
     try { window.dispatchEvent(new CustomEvent('drive-backup:changed', { detail: { settings } })); } catch (e) {}
   }
 
+  function emitProgress(msg, type, pct) {
+    try {
+      window.dispatchEvent(new CustomEvent('drive-backup:progress', {
+        detail: { msg: msg, type: type || 'info', pct: pct == null ? null : pct, time: Date.now() }
+      }));
+    } catch (e) {}
+  }
+
   async function driveValues() {
     let values = {};
     try {
@@ -183,15 +191,19 @@
     const values = await driveValues();
 
     await writeSettings({ lastBackupStatus: 'running', lastBackupDetail: 'Iniciando backup...' });
+    emitProgress('Iniciando backup...', 'running', 0);
 
     try {
       const snapshot = await collectSnapshot();
+      emitProgress('Dados coletados. Preparando pastas e enviando ao Google Drive...', 'info', 55);
       const organized = organize(snapshot);
       const options = { folder: values.backupFolder || settings.folder, retentionCount: values.retentionCount || settings.retentionCount };
       let result;
       if (appsScriptUrl(values)) {
+        emitProgress('Enviando para o Google Drive (Web app)...', 'info', 70);
         result = await callAppsScript('backup', { organized, options });
       } else {
+        emitProgress('Enviando para o Google Drive (backend)...', 'info', 70);
         result = await callBackend('driveBackup', { kind: 'full', organized, options });
       }
 
@@ -202,6 +214,8 @@
         nextBackupAt: computeNextBackup(values),
         pendingIncremental: 0
       });
+      emitProgress((result && result.message) || 'Backup concluído com sucesso!', 'success', 100);
+      if (typeof showToast === 'function') showToast('Backup concluído com sucesso!', 'success');
       return { ok: true, via: appsScriptUrl(values) ? 'appsscript' : 'drive', result };
     } catch (err) {
       const backendMissing = isBackendMissingError(err);
@@ -215,9 +229,13 @@
           nextBackupAt: computeNextBackup(values),
           pendingIncremental: 0
         });
+        emitProgress(detail, 'warn', 100);
+        if (typeof showToast === 'function') showToast('Backup exportado localmente (backend não configurado).', 'info');
         return { ok: true, via: 'local', detail };
       }
       await writeSettings({ lastBackupStatus: 'error', lastBackupDetail: (err && err.message) || 'Falha no backup.' });
+      emitProgress('Falha no backup: ' + ((err && err.message) || 'erro'), 'error', 100);
+      if (typeof showToast === 'function') showToast('Falha no backup: ' + ((err && err.message) || 'erro'), 'error');
       return { ok: false, error: err };
     }
   }

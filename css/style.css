@@ -2084,6 +2084,14 @@ body.theme-dark .quick-action-icon {
 .settings-block-header p { margin:.15rem 0 0; font-size:.8rem; color:var(--text-muted); }
 .settings-block-body { padding:0.25rem 1.25rem 1.25rem; }
 .settings-block-body .form-group { margin-bottom:1rem; }
+
+/* Estilo de categorias (acordeão estilo Android) */
+.settings-block-header--clickable { cursor:pointer; user-select:none; transition:background 0.15s ease; }
+.settings-block-header--clickable:hover { background:linear-gradient(135deg, rgba(2,132,199,.16), rgba(2,132,199,.06)); }
+.settings-block-chevron { margin-left:auto; font-size:1.15rem; color:var(--text-muted); transition:transform 0.2s ease; flex-shrink:0; }
+.settings-block.open .settings-block-chevron { transform:rotate(180deg); }
+.settings-block-body { display:none; }
+.settings-block.open .settings-block-body { display:block; }
 .api-admin-link { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-top:1rem; padding:.9rem 1rem; border:1px dashed #94a3b8; border-radius:8px; background:#f8fafc; }
 .api-admin-link > div { display:flex; align-items:flex-start; gap:.6rem; min-width:0; }
 .api-admin-link > div > i { font-size:1.2rem; color:var(--accent); margin-top:2px; }

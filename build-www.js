@@ -61,8 +61,12 @@ console.log('www/ directory updated successfully.');
 const crypto = require('crypto');
 
 // Versão do APK — MANTER em sincronia com android/app/build.gradle
-const APK_NAME = '0.0.11';
-const APK_CODE = 11;
+const APK_NAME = '0.0.12';
+const APK_CODE = 12;
+
+// Publica o APK também em www/apk/ (GitHub Pages) apenas quando solicitado
+// explicitamente, para que o APK nunca seja empacotado dentro dele mesmo.
+const WITH_APK = process.argv.includes('--with-apk');
 
 // Arquivos da camada web (atualização modular)
 const WEB_FILES = [
@@ -81,6 +85,7 @@ const WEB_FILES = [
   'js/whatsapp.js',
   'js/backup.js',
   'js/drive-backup.js',
+  'js/bug-report.js',
   'js/update-checker.js',
   'js/api-admin.js',
   'js/catalogos.js',
@@ -112,12 +117,24 @@ function generateManifest() {
   const apkPath = path.join(__dirname, 'apk-releases', `Dalbran-v${APK_NAME}.apk`);
   if (fs.existsSync(apkPath)) {
     apk.sha256 = fileSha256(apkPath);
+  }
+  if (WITH_APK && fs.existsSync(apkPath)) {
     // Publica o APK também no GitHub Pages (mesmo domínio do versao.json),
     // pois algumas redes bloqueiam downloads diretos de github.com/releases.
     const apkDestDir = path.join(destDir, 'apk');
     fs.mkdirSync(apkDestDir, { recursive: true });
-    fs.copyFileSync(apkPath, path.join(apkDestDir, `Dalbran-v${APK_NAME}.apk`));
-    console.log(`APK copiado para www/apk/Dalbran-v${APK_NAME}.apk`);
+    // Mantém apenas o APK da versão atual (evita acumular APKs antigos no app).
+    const currentApkName = `Dalbran-v${APK_NAME}.apk`;
+    try {
+      fs.readdirSync(apkDestDir).forEach(f => {
+        if (f !== currentApkName) {
+          const old = path.join(apkDestDir, f);
+          try { fs.unlinkSync(old); } catch (e) {}
+        }
+      });
+    } catch (e) {}
+    fs.copyFileSync(apkPath, path.join(apkDestDir, currentApkName));
+    console.log(`APK copiado para www/apk/${currentApkName}`);
   }
 
   const manifest = {

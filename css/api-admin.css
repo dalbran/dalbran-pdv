@@ -205,6 +205,26 @@ body.api-dark .api-drive-panel { background: rgba(26, 115, 232, 0.12); }
 .api-backup-run { color: #0369a1; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
 .api-backup-err { color: #dc2626; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
 .api-backup-warn { color: #d97706; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
+.api-drive-progress {
+  margin: 10px 0; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: 10px;
+  background: #eff6ff; display: flex; flex-direction: column; gap: 7px;
+}
+.api-drive-progress.hidden { display: none; }
+.api-drive-progress-track { height: 8px; border-radius: 999px; background: #dbeafe; overflow: hidden; }
+.api-drive-progress-fill {
+  height: 100%; width: 0%; border-radius: 999px; transition: width .3s ease;
+  background: linear-gradient(90deg, #1a73e8, #22d3ee);
+}
+.api-drive-progress-msg { font-size: .76rem; color: #1e3a5f; line-height: 1.4; }
+.api-drive-progress.api-progress-ok { border-color: #a7f3d0; background: #ecfdf5; }
+.api-drive-progress.api-progress-ok .api-drive-progress-msg { color: #065f46; }
+.api-drive-progress.api-progress-ok .api-drive-progress-fill { background: #16a34a; }
+.api-drive-progress.api-progress-err { border-color: #fecaca; background: #fef2f2; }
+.api-drive-progress.api-progress-err .api-drive-progress-msg { color: #991b1b; }
+.api-drive-progress.api-progress-err .api-drive-progress-fill { background: #dc2626; }
+.api-drive-progress.api-progress-warn { border-color: #fde68a; background: #fffbeb; }
+.api-drive-progress.api-progress-warn .api-drive-progress-msg { color: #92400e; }
+.api-drive-progress.api-progress-warn .api-drive-progress-fill { background: #d97706; }
 .api-drive-tree {
   margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--api-border);
   font-size: .78rem;

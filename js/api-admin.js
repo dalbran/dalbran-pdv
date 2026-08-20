@@ -320,6 +320,10 @@
         <span class="api-cred-label"><i class="ph ph-info" aria-hidden="true"></i> Status do último backup</span>
         <span class="api-cred-value">${lastStatusHtml} ${lastDetail ? '<br><small class="api-drive-detail">' + escapeHtml(lastDetail) + '</small>' : ''}</span>
       </div>
+      <div class="api-drive-progress hidden" id="api-drive-progress">
+        <div class="api-drive-progress-track"><div class="api-drive-progress-fill" id="api-drive-progress-fill"></div></div>
+        <span class="api-drive-progress-msg" id="api-drive-progress-msg"></span>
+      </div>
       <div class="api-drive-tree">
         <strong><i class="ph ph-tree-structure" aria-hidden="true"></i> Estrutura criada no Drive</strong>
         <pre>${escapeHtml(folder)}/
@@ -557,6 +561,26 @@
       if (savedTheme === 'dark') document.body.classList.add('theme-dark');
       applyTheme();
     } catch (e) {}
+
+    // Progresso do backup do Drive
+    document.addEventListener('drive-backup:progress', (ev) => {
+      const d = ev.detail || {};
+      const box = document.getElementById('api-drive-progress');
+      const fill = document.getElementById('api-drive-progress-fill');
+      const msg = document.getElementById('api-drive-progress-msg');
+      if (!box || !msg) return;
+      box.classList.remove('hidden');
+      box.classList.remove('api-progress-ok', 'api-progress-err', 'api-progress-warn');
+      if (fill && d.pct != null) fill.style.width = Math.max(0, Math.min(100, d.pct)) + '%';
+      msg.textContent = d.msg || '';
+      if (d.type === 'success') box.classList.add('api-progress-ok');
+      else if (d.type === 'error') box.classList.add('api-progress-err');
+      else if (d.type === 'warn') box.classList.add('api-progress-warn');
+      if (d.type === 'success' || d.type === 'error' || d.type === 'warn') {
+        setTimeout(() => { try { box.classList.add('hidden'); } catch (e) {} }, 6000);
+        renderIntegrations();
+      }
+    });
 
     $('api-login-form').addEventListener('submit', handleLogin);
     $('api-secret-form').addEventListener('submit', handleSecretSubmit);

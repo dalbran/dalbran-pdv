@@ -302,7 +302,7 @@ function renderSettingsView() {
           <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;padding-top:0.9rem;border-top:1px solid var(--border);">
             <div>
               <strong style="font-size:0.85rem;">Versão instalada:</strong>
-              <span style="font-size:0.82rem;color:var(--text-muted);">${window.AppUpdater ? window.AppUpdater.APP_VERSION.name + ' (code ' + window.AppUpdater.APP_VERSION.code + ')' : '0.0.11 (code 11)'}</span>
+              <span style="font-size:0.82rem;color:var(--text-muted);">${window.AppUpdater ? window.AppUpdater.APP_VERSION.name + ' (code ' + window.AppUpdater.APP_VERSION.code + ')' : '0.0.12 (code 12)'}</span>
             </div>
             <button type="button" id="btn-check-updates" class="btn btn-outline" onclick="window.checkAppUpdates()"><i class="ph ph-magnifying-glass" aria-hidden="true"></i> Verificar atualizações agora</button>
             <button type="button" id="btn-download-apk" class="btn btn-outline" onclick="window.downloadLatestApk()"><i class="ph ph-download-simple" aria-hidden="true"></i> Baixar e instalar APK</button>
@@ -310,6 +310,20 @@ function renderSettingsView() {
           <div id="update-check-log-wrap" class="update-check-log-wrap hidden">
             <div class="update-check-log-header"><span class="update-check-spinner"></span><strong>Verificação de atualização</strong></div>
             <pre id="update-check-log" class="update-check-log"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- BLOCO 8: Suporte e Erros -->
+      <section class="settings-block" aria-label="Suporte e erros">
+        <div class="settings-block-header"><i class="ph ph-lifebuoy" aria-hidden="true"></i><div><h3>Suporte e Erros</h3><p>Envie relatórios de erros e consulte a versão do aplicativo.</p></div></div>
+        <div class="settings-block-body">
+          <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:0.5rem;">
+            <div style="display:flex;gap:0.8rem;flex-wrap:wrap;">
+              <button type="button" class="btn btn-outline" onclick="window.sendBugReport()"><i class="ph ph-paper-plane-tilt" aria-hidden="true"></i> Enviar relatório de erros</button>
+              <button type="button" class="btn btn-outline" onclick="window.downloadBugLog()"><i class="ph ph-download-simple" aria-hidden="true"></i> Baixar log</button>
+            </div>
+            <small style="color:var(--text-muted);font-size:0.78rem;line-height:1.5;">Erros de uso são capturados automaticamente e enviados para análise (coleção <code>bug_reports</code>). Você também pode enviar manualmente quando quiser. O relatório contém a versão do app, aparelho e os últimos erros registrados.</small>
           </div>
         </div>
       </section>
@@ -329,8 +343,30 @@ function renderSettingsView() {
 
   bindSettingsFormEvent();
   bindMobileAppearanceControls();
+  bindSettingsAccordion();
   document.querySelectorAll('#form-settings input, #form-settings select, #form-settings textarea').forEach(element => { if (window.isMasterUser === false) element.disabled = true; });
   bindOperatorsEvents();
+}
+
+// Configurações em estilo de categorias (acordeão estilo Android):
+// clica no título para abrir/fechar as opções daquela categoria.
+function bindSettingsAccordion() {
+  document.querySelectorAll('.settings-block').forEach((block, idx) => {
+    const header = block.querySelector('.settings-block-header');
+    if (!header) return;
+    header.classList.add('settings-block-header--clickable');
+    if (!header.querySelector('.settings-block-chevron')) {
+      const chev = document.createElement('i');
+      chev.className = 'ph ph-caret-down settings-block-chevron';
+      chev.setAttribute('aria-hidden', 'true');
+      header.appendChild(chev);
+    }
+    header.addEventListener('click', (e) => {
+      if (e.target.closest('button, a, input, select, label')) return;
+      block.classList.toggle('open');
+    });
+    if (idx === 0) block.classList.add('open');
+  });
 }
 
 // Abre a página administrativa de APIs em uma área separada e protegida.
