@@ -284,7 +284,7 @@ function renderSettingsView() {
 
       <!-- BLOCO 7: Atualizações do Aplicativo -->
       <section class="settings-block" aria-label="Atualizações do aplicativo">
-        <div class="settings-block-header"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><div><h3>Atualizações do Aplicativo</h3><p>Verificação automática de nova versão (web modular e APK completo).</p></div></div>
+        <div class="settings-block-header"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><div><h3>Atualizações do Aplicativo</h3><p>Atualização modular (web) sem reinstalar o APK; APK completo apenas quando houver mudança nativa.</p></div></div>
         <div class="settings-block-body">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-top:0.5rem;">
             <div class="form-group"><label>URL do manifest de versão (versao.json)</label><input type="url" id="set-updateManifestUrl" value="${currentSettings.updateManifestUrl || ''}" placeholder="https://SEU_USUARIO.github.io/REPO/versao.json"></div>
@@ -299,10 +299,15 @@ function renderSettingsView() {
               <label><input id="set-updateCheckApk" type="checkbox" ${currentSettings.updateCheckApk !== false ? 'checked' : ''}> Avisar novo APK</label>
             </div>
           </div>
+          <div class="update-version-info" id="update-version-info">
+            <span><strong>Web (modular):</strong> <span id="uv-info-web">-</span></span>
+            <span><strong>Nativa (APK):</strong> <span id="uv-info-native">-</span></span>
+            <span><strong>Dispositivo:</strong> <span id="uv-info-device">-</span></span>
+          </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;padding-top:0.9rem;border-top:1px solid var(--border);">
             <div>
               <strong style="font-size:0.85rem;">Versão instalada:</strong>
-              <span style="font-size:0.82rem;color:var(--text-muted);">${window.AppUpdater ? window.AppUpdater.APP_VERSION.name + ' (code ' + window.AppUpdater.APP_VERSION.code + ')' : '0.0.13 (code 13)'}</span>
+              <span style="font-size:0.82rem;color:var(--text-muted);">${window.AppUpdater ? window.AppUpdater.APP_VERSION.name + ' (code ' + window.AppUpdater.APP_VERSION.code + ')' : '0.0.14 (code 14)'}</span>
             </div>
             <button type="button" id="btn-check-updates" class="btn btn-outline" onclick="window.checkAppUpdates()"><i class="ph ph-magnifying-glass" aria-hidden="true"></i> Verificar atualizações agora</button>
             <button type="button" id="btn-download-apk" class="btn btn-outline" onclick="window.downloadLatestApk()"><i class="ph ph-download-simple" aria-hidden="true"></i> Baixar e instalar APK</button>
@@ -346,6 +351,7 @@ function renderSettingsView() {
   bindSettingsAccordion();
   document.querySelectorAll('#form-settings input, #form-settings select, #form-settings textarea').forEach(element => { if (window.isMasterUser === false) element.disabled = true; });
   bindOperatorsEvents();
+  if (window.refreshUpdateVersionInfo) window.refreshUpdateVersionInfo();
 }
 
 // Configurações em estilo de categorias (acordeão estilo Android):

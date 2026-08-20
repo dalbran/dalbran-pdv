@@ -196,4 +196,127 @@ public class ApkInstallerPlugin extends Plugin {
             call.reject("Erro ao iniciar a instalação: " + e.getMessage());
         }
     }
+
+    // ---------------------------------------------------------------
+    // Informações do dispositivo (para diagnóstico e instruções por fabricante)
+    // ---------------------------------------------------------------
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        Context ctx = getContext();
+        JSObject res = new JSObject();
+        res.put("platform", "android");
+        res.put("manufacturer", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER);
+        res.put("model", Build.MODEL == null ? "" : Build.MODEL);
+        res.put("osVersion", Build.VERSION.RELEASE == null ? "" : Build.VERSION.RELEASE);
+        res.put("api", Build.VERSION.SDK_INT);
+        res.put("package", ctx.getPackageName());
+        try {
+            res.put("appVersion", ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                res.put("appCode", (long) ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).getLongVersionCode());
+            } else {
+                res.put("appCode", (long) ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionCode);
+            }
+        } catch (Exception e) {
+            res.put("appVersion", "");
+            res.put("appCode", 0L);
+        }
+        call.resolve(res);
+    }
+
+    // O app tem autorização para solicitar instalação de pacotes (fontes desconhecidas)?
+    @PluginMethod
+    public void canInstallApks(PluginCall call) {
+        boolean can = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            getContext().getPackageManager().canRequestPackageInstalls();
+        call.resolve(new JSObject().put("canRequestPackageInstalls", can));
+    }
+
+    // Abre a tela de configurações mais relevante por fabricante/versão.
+    // target: 'install' | 'app' | 'security' | 'system'
+    @PluginMethod
+    public void openInstallationSettings(PluginCall call) {
+        String target = call.getString("target");
+        if (target == null || target.isEmpty()) target = "install";
+
+        Context ctx = getContext();
+        String manufacturer = (Build.MANUFACTURER == null ? "" : Build.MANUFACTURER).toLowerCase();
+        boolean canInstall = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            ctx.getPackageManager().canRequestPackageInstalls();
+
+        JSObject result = new JSObject();
+        result.put("manufacturer", manufacturer);
+        result.put("target", target);
+        result.put("api", Build.VERSION.SDK_INT);
+
+        Intent intent = null;
+        String action = "";
+
+        // 1. Instalação de apps (fontes desconhecidas)
+        if ("install".equals(target) && !canInstall) {
+            intent = new Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:" + ctx.getPackageName())
+            );
+            action = "MANAGE_UNKNOWN_APP_SOURCES";
+            // Xiaomi (MIUI) tem tela própria de instalação por app
+            if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
+                Intent mi = new Intent();
+                mi.setClassName("com.miui.securitycenter", "com.miui.permcenter.installspermission.InstallsPermissionActivity");
+                try {
+                    ctx.startActivity(mi);
+                    result.put("opened", true);
+                    result.put("action", "MIUI_INSTALL_PERMISSION");
+                    call.resolve(result);
+                    return;
+                } catch (Exception ignored) {}
+            }
+        } else if ("install".equals(target)) {
+            // Já autorizado: abre os detalhes do app para ajustes finos
+            intent = new Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:" + ctx.getPackageName())
+            );
+            action = "APPLICATION_DETAILS";
+        } else if ("app".equals(target)) {
+            intent = new Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:" + ctx.getPackageName())
+            );
+            action = "APPLICATION_DETAILS";
+        } else if ("security".equals(target)) {
+            intent = new Intent(Settings.ACTION_SECURITY_SETTINGS);
+            action = "SECURITY";
+        } else {
+            intent = new Intent(Settings.ACTION_SETTINGS);
+            action = "SETTINGS";
+        }
+
+        if (intent != null) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(intent);
+                result.put("opened", true);
+                result.put("action", action);
+                call.resolve(result);
+                return;
+            } catch (Exception ignored) {
+                // tenta o fallback genérico
+            }
+        }
+
+        // Fallback final: configurações gerais do sistema
+        try {
+            Intent sys = new Intent(Settings.ACTION_SETTINGS);
+            sys.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(sys);
+            result.put("opened", true);
+            result.put("action", "SETTINGS_FALLBACK");
+            call.resolve(result);
+        } catch (Exception e) {
+            result.put("opened", false);
+            result.put("error", e.getMessage());
+            call.reject("Não foi possível abrir as configurações: " + e.getMessage(), e);
+        }
+    }
 }

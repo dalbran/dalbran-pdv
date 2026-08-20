@@ -46,11 +46,50 @@ function copyRecursiveSync(src, dest) {
   }
 }
 
+// Versão NATIVA/APK — MANTER em sincronia com android/app/build.gradle.
+// Só deve aumentar quando houver mudança real no container nativo
+// (plugin, permissão, Manifest, código Java/Kotlin, assinatura, libs).
+const APK_NAME = '0.0.14';
+const APK_CODE = 14;
+
+// Versão WEB/MODULAR — controla tudo que pode ser atualizado sem novo APK
+// (HTML, CSS, JS, telas, módulos, imagens, traduções, configurações remotas).
+// Aumenta em TODA publicação web, mesmo quando o APK não muda.
+const WEB_VERSION = '1.0.0';
+const WEB_CODE = 100;
+
+// Quando true, a atualização nativa (APK) é OBRIGATÓRIA para esta versão —
+// usado apenas quando a mudança não pode ser entregue pela camada web.
+// Neste build o container ganhou suporte a abrir configurações de instalação,
+// mas a entrega é 100% modular, então o APK é opcional (contingência).
+const APK_REQUIRED = false;
+const APK_REASON = ''; // preenchido quando APK_REQUIRED = true
+
+// Publica o APK também em www/apk/ (GitHub Pages) apenas quando solicitado
+// explicitamente, para que o APK nunca seja empacotado dentro dele mesmo.
+const WITH_APK = process.argv.includes('--with-apk');
+
 console.log('Syncing root files to www/...');
 copyRecursiveSync(srcDir, destDir);
 // O www/ é publicado no GitHub Pages — TODOS os arquivos (inclusive
 // versao.json) precisam ser versionados. O .gitignore da raiz não se aplica aqui.
 fs.writeFileSync(path.join(destDir, '.gitignore'), '# GitHub Pages — publicar todos os arquivos gerados\n');
+
+// Injeta o marcador de versão web no index.html publicado. O app lê
+// window.__WEB_CODE__ para CONFIRMAR que a camada web em execução é mesmo a
+// versão instalada (base para a ativação/rollback da atualização modular).
+const indexHtmlPath = path.join(destDir, 'index.html');
+if (fs.existsSync(indexHtmlPath)) {
+  let html = fs.readFileSync(indexHtmlPath, 'utf8');
+  const marker = `<script>window.__WEB_VERSION__=${JSON.stringify(WEB_VERSION)};window.__WEB_CODE__=${WEB_CODE};</script>`;
+  if (!html.includes('window.__WEB_VERSION__')) {
+    html = html.replace('</head>', '  ' + marker + '\n</head>');
+  } else {
+    html = html.replace(/<script>window\.__WEB_VERSION__[^<]*<\/script>/, marker);
+  }
+  fs.writeFileSync(indexHtmlPath, html);
+  console.log('Marcador de versão web injetado no index.html (' + WEB_VERSION + ' / code ' + WEB_CODE + ').');
+}
 console.log('www/ directory updated successfully.');
 
 // ============================================================================
@@ -59,14 +98,6 @@ console.log('www/ directory updated successfully.');
 //  Publique o www/ (ex.: GitHub Pages) junto com este arquivo.
 // ============================================================================
 const crypto = require('crypto');
-
-// Versão do APK — MANTER em sincronia com android/app/build.gradle
-const APK_NAME = '0.0.13';
-const APK_CODE = 13;
-
-// Publica o APK também em www/apk/ (GitHub Pages) apenas quando solicitado
-// explicitamente, para que o APK nunca seja empacotado dentro dele mesmo.
-const WITH_APK = process.argv.includes('--with-apk');
 
 // Arquivos da camada web (atualização modular)
 const WEB_FILES = [
@@ -86,6 +117,7 @@ const WEB_FILES = [
   'js/backup.js',
   'js/drive-backup.js',
   'js/bug-report.js',
+  'js/permissions.js',
   'js/update-checker.js',
   'js/api-admin.js',
   'js/catalogos.js',
@@ -112,7 +144,11 @@ function generateManifest() {
     code: APK_CODE,
     url: `https://dalbran.github.io/dalbran-pdv/apk/Dalbran-v{VERSION}.apk`,
     fallbackUrl: `https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk`,
-    sha256: ''
+    sha256: '',
+    // required=true => atualização nativa OBRIGATÓRIA (mudança que não pode
+    // ser entregue pela camada web). required=false => APK opcional/contingência.
+    required: APK_REQUIRED,
+    reason: APK_REASON
   };
   const apkPath = path.join(__dirname, 'apk-releases', `Dalbran-v${APK_NAME}.apk`);
   if (fs.existsSync(apkPath)) {
@@ -148,9 +184,17 @@ function generateManifest() {
   }
 
   const manifest = {
-    schema: 1,
-    version: APK_NAME,
-    code: APK_CODE,
+    schema: 2,
+    // Alias de compatibilidade: versões antigas do app liam `version`/`code`
+    // como a versão do app. Continuam apontando para a versão web mais nova.
+    version: WEB_VERSION,
+    code: WEB_CODE,
+    // Versão web/modular — controla a atualização modular (sem APK)
+    webVersion: WEB_VERSION,
+    webCode: WEB_CODE,
+    // Versão nativa/APK — só muda quando o container Android muda
+    nativeVersion: APK_NAME,
+    nativeCode: APK_CODE,
     force: false, // true = atualização obrigatória (sem "Agora não" e com barra de progresso)
     apk,
     web,

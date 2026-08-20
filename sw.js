@@ -1,5 +1,7 @@
-const CACHE_NAME = 'dalbran-cache-v16';
-const UPDATE_CACHE = 'dalbran-update-cache-v2';
+const CACHE_NAME = 'dalbran-cache-v17';
+const UPDATE_CACHE_PREFIX = 'dalbran-update-cache-v';
+const CONTROL_CACHE = 'dalbran-update-state';
+
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,6 +12,7 @@ const ASSETS_TO_CACHE = [
   './js/firebase.js',
   './js/auth.js',
   './js/utils.js',
+  './js/permissions.js',
   './js/produtos.js',
   './js/clientes.js',
   './js/configuracoes.js',
@@ -36,7 +39,56 @@ function normalizeUrl(url) {
   return u.href;
 }
 
-// Instalação resiliente: mesmo que um asset falhe, o Service Worker ativa.
+// ---------------------------------------------------------------------------
+// Controle de qual cache de atualização está ATIVO
+// ---------------------------------------------------------------------------
+let activeUpdateCache = null;   // nome do cache de atualização ativo (ex.: dalbran-update-cache-v100)
+let keepUpdateCache = null;     // cache anterior mantido para rollback
+let controlReadAt = 0;
+
+async function readControl() {
+  try {
+    const cache = await caches.open(CONTROL_CACHE);
+    const res = await cache.match('state');
+    if (!res) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+async function writeControl(state) {
+  try {
+    const cache = await caches.open(CONTROL_CACHE);
+    await cache.put('state', new Response(JSON.stringify(state), {
+      headers: { 'Content-Type': 'application/json' }
+    }));
+  } catch (e) {}
+}
+
+async function refreshActive() {
+  // Re-lê o estado de controle (memoiza por 2s para não custar em cada fetch)
+  const now = Date.now();
+  if (activeUpdateCache && now - controlReadAt < 2000) return;
+  const state = await readControl();
+  if (state) {
+    activeUpdateCache = state.active || null;
+    keepUpdateCache = state.previous || null;
+  }
+  controlReadAt = now;
+}
+
+async function pruneUpdateCaches(keep) {
+  const keepSet = new Set(keep || []);
+  const keys = await caches.keys();
+  await Promise.all(
+    keys
+      .filter((k) => k.startsWith(UPDATE_CACHE_PREFIX) && !keepSet.has(k))
+      .map((k) => caches.delete(k))
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Instalação / ativação
+// ---------------------------------------------------------------------------
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
@@ -54,25 +106,64 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Ativação: limpa caches antigos e assume o controle imediatamente.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((k) => k !== CACHE_NAME && k !== UPDATE_CACHE).map((k) => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
+    (async () => {
+      await refreshActive();
+      // Limpa caches obsoletos da instalação base (mantém os de atualização)
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k !== CACHE_NAME && k !== CONTROL_CACHE && !k.startsWith(UPDATE_CACHE_PREFIX))
+          .map((k) => caches.delete(k))
+      );
+      await self.clients.claim();
+    })()
   );
 });
 
+// ---------------------------------------------------------------------------
+// Protocolo de ativação atômica (usado pelo js/update-checker.js)
+// ---------------------------------------------------------------------------
+self.addEventListener('message', (event) => {
+  const data = event.data || {};
+  const msg = data.type || '';
+  if (msg === 'SET_ACTIVE') {
+    // Nova versão baixada e validada: aponta o cache ativo para ela.
+    // Mantém o cache anterior (keepUpdateCache) até a confirmação, para rollback.
+    const state = data.state || {};
+    activeUpdateCache = state.active || null;
+    keepUpdateCache = state.previous || null;
+    controlReadAt = Date.now();
+    writeControl({ active: activeUpdateCache, version: state.version || '', previous: keepUpdateCache });
+    pruneUpdateCaches([activeUpdateCache, keepUpdateCache].filter(Boolean));
+  } else if (msg === 'CONFIRM_ACTIVE') {
+    // A nova versão já está em execução: pode apagar o cache anterior.
+    activeUpdateCache = data.cacheName || null;
+    keepUpdateCache = null;
+    controlReadAt = Date.now();
+    writeControl({ active: activeUpdateCache, version: data.version || '', previous: null });
+    pruneUpdateCaches([activeUpdateCache].filter(Boolean));
+  } else if (msg === 'REVERT_ACTIVE') {
+    // Falha de ativação: volta ao cache anterior (ou à versão embutida).
+    activeUpdateCache = data.cacheName || null;
+    keepUpdateCache = null;
+    controlReadAt = Date.now();
+    writeControl({ active: activeUpdateCache, version: data.version || '', previous: null });
+    pruneUpdateCaches([activeUpdateCache].filter(Boolean));
+  } else if (msg === 'PRUNE') {
+    pruneUpdateCaches([activeUpdateCache, keepUpdateCache].filter(Boolean));
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Interceptação de requisições
+// ---------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
-  // 1. Só faz cache de requisições GET (ignora POST, PUT, DELETE do Firebase)
   if (event.request.method !== 'GET') return;
 
   const url = event.request.url;
 
-  // 2. Ignora APIs do Firebase, extensões e o próprio Service Worker
   if (url.includes('firestore.googleapis.com') || url.includes('identitytoolkit') || url.includes('chrome-extension')) {
     return;
   }
@@ -93,17 +184,20 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith((async () => {
-    // 3. Prioriza os arquivos da atualização modular (escritos pelo update-checker)
-    const updateCache = await caches.open(UPDATE_CACHE);
-    const updated = await updateCache.match(new Request(normalized));
-    if (updated) return updated;
+    // 1. Cache de atualização ATIVO (versão modular aplicada)
+    await refreshActive();
+    if (activeUpdateCache) {
+      const updateCache = await caches.open(activeUpdateCache);
+      const updated = await updateCache.match(new Request(normalized));
+      if (updated) return updated;
+    }
 
-    // 4. Depois o cache principal (offline-first)
+    // 2. Cache principal (versão embutida no APK / offline-first)
     const mainCache = await caches.open(CACHE_NAME);
     const cached = await mainCache.match(new Request(normalized));
     if (cached) return cached;
 
-    // 5. Rede — e atualiza o cache principal
+    // 3. Rede — e atualiza o cache principal (apenas conteúdo básico mesmo-origem)
     try {
       const res = await fetch(event.request);
       if (res && res.status === 200 && res.type === 'basic' && !normalized.includes('versao.json')) {
