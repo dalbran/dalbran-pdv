@@ -1,9 +1,9 @@
 {
   "schema": 2,
-  "version": "1.0.1",
-  "code": 101,
-  "webVersion": "1.0.1",
-  "webCode": 101,
+  "version": "1.0.2",
+  "code": 102,
+  "webVersion": "1.0.2",
+  "webCode": 102,
   "nativeVersion": "0.0.14",
   "nativeCode": 14,
   "force": false,
@@ -19,7 +19,7 @@
   "web": [
     {
       "path": "index.html",
-      "sha256": "84a0d7ca7ae32da428b8f5f4cbcf96b39650a261ececb187d80642f1f7dd1eca"
+      "sha256": "b469b46cecc8351df03d7488ecc547b880be0cf1ad7e62065fd4bfb7583e6c34"
     },
     {
       "path": "API.html",
@@ -59,7 +59,7 @@
     },
     {
       "path": "js/configuracoes.js",
-      "sha256": "2ef5d71fafab9a3e2253c4452f8f4799dc209b0c06939ae92f200351b78d60c2"
+      "sha256": "c295fd1378a14024e60a148f3c2e54a6f05f539e7c50f812e27e409c46750508"
     },
     {
       "path": "js/orcamento.js",
@@ -87,7 +87,7 @@
     },
     {
       "path": "js/update-checker.js",
-      "sha256": "4f882a730d49edc519a8d0715f0044bc6cedd84426377b53a089f910520da941"
+      "sha256": "922f340497cfcbf26fb8b54359a92359157972301e6bfdc4577ffe98fbddda81"
     },
     {
       "path": "js/api-admin.js",
@@ -122,5 +122,5 @@
       "sha256": "494e2135e0ba6c628586878e18fb7c351c52603c90d630fb9d4147256be130ba"
     }
   ],
-  "updatedAt": "2026-08-20T13:04:14.571Z"
+  "updatedAt": "2026-08-20T13:16:41.163Z"
 }

@@ -327,6 +327,7 @@ function renderSettingsView() {
             <div style="display:flex;gap:0.8rem;flex-wrap:wrap;">
               <button type="button" class="btn btn-outline" onclick="window.sendBugReport()"><i class="ph ph-paper-plane-tilt" aria-hidden="true"></i> Enviar relatório de erros</button>
               <button type="button" class="btn btn-outline" onclick="window.downloadBugLog()"><i class="ph ph-download-simple" aria-hidden="true"></i> Baixar log</button>
+              <button type="button" class="btn btn-outline" onclick="window.showUpdateDiagnostics()"><i class="ph ph-bug" aria-hidden="true"></i> Diagnóstico de atualização</button>
             </div>
             <small style="color:var(--text-muted);font-size:0.78rem;line-height:1.5;">Erros de uso são capturados automaticamente e enviados para análise (coleção <code>bug_reports</code>). Você também pode enviar manualmente quando quiser. O relatório contém a versão do app, aparelho e os últimos erros registrados.</small>
           </div>
