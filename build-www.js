@@ -55,8 +55,8 @@ const APK_CODE = 14;
 // Versão WEB/MODULAR — controla tudo que pode ser atualizado sem novo APK
 // (HTML, CSS, JS, telas, módulos, imagens, traduções, configurações remotas).
 // Aumenta em TODA publicação web, mesmo quando o APK não muda.
-const WEB_VERSION = '1.0.2';
-const WEB_CODE = 102;
+const WEB_VERSION = '1.0.3';
+const WEB_CODE = 103;
 
 // Quando true, a atualização nativa (APK) é OBRIGATÓRIA para esta versão —
 // usado apenas quando a mudança não pode ser entregue pela camada web.
@@ -91,6 +91,30 @@ if (fs.existsSync(indexHtmlPath)) {
   console.log('Marcador de versão web injetado no index.html (' + WEB_VERSION + ' / code ' + WEB_CODE + ').');
 }
 console.log('www/ directory updated successfully.');
+
+// Normaliza finais de linha para LF nos arquivos de texto do www/.
+// Necessário porque o git com core.autocrlf=true armazena/serve os blobs
+// com LF no GitHub Pages, mas o working tree pode estar CRLF. Os hashes do
+// versao.json são calculados sobre ESTES arquivos normalizados, então a
+// validação de checksum na atualização modular bate com o que é servido.
+function normalizeTextFiles(dir) {
+  const exts = ['.html', '.css', '.js', '.json', '.conf', '.md', '.txt', '.svg'];
+  try {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) normalizeTextFiles(full);
+      else if (entry.isFile() && exts.some((e) => entry.name.toLowerCase().endsWith(e))) {
+        const buf = fs.readFileSync(full);
+        if (buf.indexOf(13) !== -1) {
+          const text = buf.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+          fs.writeFileSync(full, text, 'utf8');
+        }
+      }
+    });
+  } catch (e) {}
+}
+normalizeTextFiles(destDir);
+console.log('www/ text files normalized to LF.');
 
 // ============================================================================
 //  GERAÇÃO DO MANIFEST DE VERSÃO (versao.json)
