@@ -1554,6 +1554,122 @@ body {
 .update-modal-status.success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
 .update-modal-status.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
 .update-modal-status.hidden { display: none; }
+
+/* Badge de tipo de atualização (WEB/MODULAR ou NATIVA) */
+.update-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  margin-bottom: 0.9rem;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+.update-type-badge.web { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.update-type-badge.native { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.update-type-badge.optional { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+.update-type-badge.error { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+
+/* Caixa de motivo da atualização nativa */
+.update-reason-box {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.8rem;
+  color: #7c2d12;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.update-reason-box strong { font-weight: 700; }
+.update-reason-box.hidden { display: none; }
+
+/* Caixa de dispositivo (diagnóstico) */
+.update-device-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #334155;
+}
+.update-device-box .udv-label { font-weight: 700; color: #64748b; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em; }
+.update-device-box.hidden { display: none; }
+
+/* Etapa atual da atualização (Baixando → Validando → Ativando → Reiniciando) */
+.update-modal-stage {
+  margin-bottom: 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.update-modal-stage::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0284c7;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.update-modal-stage.hidden { display: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Pré de diagnóstico (falha de ativação) */
+.update-diag-pre {
+  max-height: 180px;
+  overflow: auto;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+
+/* Painel de versões (Configurações → Atualizações) */
+.update-version-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.4rem;
+  margin-top: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  color: #475569;
+}
+.update-version-info strong { color: #334155; font-weight: 700; }
+body.theme-dark .update-type-badge { background: #0f172a; color: #93c5fd; border-color: #1e3a8a; }
+body.theme-dark .update-type-badge.web { background: #052e16; color: #86efac; border-color: #14532d; }
+body.theme-dark .update-type-badge.native { background: #431407; color: #fdba74; border-color: #7c2d12; }
+body.theme-dark .update-type-badge.optional { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+body.theme-dark .update-type-badge.error { background: #450a0a; color: #fca5a5; border-color: #7f1d1d; }
+body.theme-dark .update-reason-box { background: #431407; border-color: #7c2d12; color: #fdba74; }
+body.theme-dark .update-device-box, body.theme-dark .update-version-info { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+body.theme-dark .update-device-box .udv-label { color: #94a3b8; }
+body.theme-dark .update-version-info strong { color: #e2e8f0; }
+body.theme-dark .update-diag-pre { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
 @media (max-width: 480px) {
   .update-modal-card { padding: 1.2rem 1rem 1rem; }
 }
