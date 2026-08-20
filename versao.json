@@ -1,9 +1,9 @@
 {
   "schema": 2,
-  "version": "1.0.2",
-  "code": 102,
-  "webVersion": "1.0.2",
-  "webCode": 102,
+  "version": "1.0.3",
+  "code": 103,
+  "webVersion": "1.0.3",
+  "webCode": 103,
   "nativeVersion": "0.0.14",
   "nativeCode": 14,
   "force": false,
@@ -19,67 +19,67 @@
   "web": [
     {
       "path": "index.html",
-      "sha256": "b469b46cecc8351df03d7488ecc547b880be0cf1ad7e62065fd4bfb7583e6c34"
+      "sha256": "047d46bdfe032f3d28375d184896cfa5affa34ef228777fd429b47633b69638e"
     },
     {
       "path": "API.html",
-      "sha256": "9eabbf10abfe189065de17e1bac2b413dd127b39193c395396115d7a8ba6dc0d"
+      "sha256": "1d3ac94565103a3abd83a0400999a1ed19b3ef1f56aaea107e57138d1bb1a146"
     },
     {
       "path": "API.conf",
-      "sha256": "6ef9055dde3b85d34bbf01334fcf3bcb4da85d32af4a0043daf258b9425c0b4e"
+      "sha256": "db02fbdd68730ef04f56e8a7d0432f9dca1051a02c45533e26e04501757f32b6"
     },
     {
       "path": "css/style.css",
-      "sha256": "5e4ae148453261d1898fc084e601852e55db663801ab027b29240b36fdf8579f"
+      "sha256": "c26f462a9e44db5be0257fbaa1e0dc345692125e95061a20b67a5f3bc5edd6b6"
     },
     {
       "path": "css/api-admin.css",
-      "sha256": "89ccf37f3e1987312f2eaef4ada0879687aa63858237d40b369a15a98b2f56b5"
+      "sha256": "147838a49813ecc4cd2d2aa1247aac6d81d7ce09773ff3137ba22b7b6e955db7"
     },
     {
       "path": "js/firebase.js",
-      "sha256": "ce4731d0befaceb07fe94adc4544398bf129cf92e38876d6ee2e5d26435f2fa0"
+      "sha256": "881157a523df3de6c1efedb695fec1463d423074cd9bc5260be511a9df88af02"
     },
     {
       "path": "js/auth.js",
-      "sha256": "c2da16cf5dc6a06c92196e922865d0379a55702aa73ec5c1e9a75fcdb88dc424"
+      "sha256": "8e0e27eb192d7cb35b4818b59dceb706d19d51373a1d800b2bb3463ff15be2e4"
     },
     {
       "path": "js/utils.js",
-      "sha256": "8bc0c980269d3339546e5bf5420fd5d4bbe9f9fd061c8d6ead3c4554f14298c9"
+      "sha256": "cbe77be55ca8fd6e5f8b9d82b4f7f66afc154ce34737647854d9ca47e9c2e4fe"
     },
     {
       "path": "js/produtos.js",
-      "sha256": "27ac114f53f20a1c398daf9765e5ea4e2d27be7c036a2396ea9faa48dde0041d"
+      "sha256": "8ca0cbbdf3da30c968115320b38b3a1956d6a3fb1941b5b92f8a16b34c1a06fb"
     },
     {
       "path": "js/clientes.js",
-      "sha256": "1e73a36c26d9383e0f62cf4d12b8e068c0030a12300eb0643b4420d87736a4c9"
+      "sha256": "3640aa8dac02000aeda5c373300f6f34461c5eb2f45bd044ca6beb2ef401670d"
     },
     {
       "path": "js/configuracoes.js",
-      "sha256": "c295fd1378a14024e60a148f3c2e54a6f05f539e7c50f812e27e409c46750508"
+      "sha256": "3d82f96419998d656691308bed13e78c90422174566c4a45da4f8a29f5a63ee7"
     },
     {
       "path": "js/orcamento.js",
-      "sha256": "bf95e505e302f57520edf2ecf450656ff536817d48d9628bd1c90cd1fbf7b059"
+      "sha256": "c353153e63b849d23f17f2742ddee3617ebaaad65174887d3d34c635f5fe7716"
     },
     {
       "path": "js/whatsapp.js",
-      "sha256": "6ea5decd24a92c3b1ba375ce679d86e4f284740dea63814be8f8c9340f5ca660"
+      "sha256": "eb23d4303e4be9b2694dd9083d09743fb8ae3616128cbeceb4bfb2412d94a40f"
     },
     {
       "path": "js/backup.js",
-      "sha256": "362a1e27946f0b7bb7b5b4f900b2e671a71746047f5e2b52aae2f79119eede77"
+      "sha256": "fda70626d87d6c64ee7b92347bf4ad291625b64703d044f1c0c2f3c46edc79c3"
     },
     {
       "path": "js/drive-backup.js",
-      "sha256": "0a8536c9d54915348ecd8831d2c85bff290bf2690958d4fe83b0175074e31bf1"
+      "sha256": "ea3f389639b9c5a27ece608c17af178ff7547532e825fd61ef2ece16eebaecc8"
     },
     {
       "path": "js/bug-report.js",
-      "sha256": "1e5dadf322140e574ccc05c2ff509132edd5f3568b38e9ee9afff250c2f9f4e6"
+      "sha256": "3d03f215865c192ee2c9a4cf9d5c610cf568dde7b3f310142aa3581d1ffadc4b"
     },
     {
       "path": "js/permissions.js",
@@ -91,27 +91,27 @@
     },
     {
       "path": "js/api-admin.js",
-      "sha256": "07f9685f12d0f830c850bb628dbe81a8b42924b10db3241515847005b5cc225f"
+      "sha256": "9ceaa4bb2fb91c6670d394130797073f2be77192ca1815ff5125c745d9a8d1d5"
     },
     {
       "path": "js/catalogos.js",
-      "sha256": "225255692d2a4271d22fe2e0326dbae10b2f62f138e1fc930e89a0f57d79a7ad"
+      "sha256": "427194e99c10cd6043b18982b6eb7dea336efb8656afef7539e870efaaf51e88"
     },
     {
       "path": "js/catalog-links.js",
-      "sha256": "96d7fafe293390dcf5c8ca50751905cbdd758c5c4fb0f09590d0e8e3e065b091"
+      "sha256": "34597f04faaead4a01c5ed6d4ee9de7f34e2f39a419cbd4bcdabacd919fd88a3"
     },
     {
       "path": "js/notifications.js",
-      "sha256": "77323a4aa666749770c0b6f8cf70bfc213bd4f7be93cbb2da4ec1a5a5c735d56"
+      "sha256": "1512d6fdee8992b8487877a9176a0f18e79cba127033bd4725050bea72d9c377"
     },
     {
       "path": "js/app.js",
-      "sha256": "d6df838e2295ef46130a6f6187cc09bab7a08b886daf706293686f55acb1e47b"
+      "sha256": "957f14a1ebb23d942f0574a5f77faa72d936d02c9394c7cdb9c9db3f2d391d3e"
     },
     {
       "path": "catalogos/catalog-data.js",
-      "sha256": "7596bd4f4a12ca4e296cea632d2ffaa60124fb08fe380cf8967109536bbb2438"
+      "sha256": "4e72763697e871d09bf94fd11046d631df02dbbe241a3a0fc62f3b490c0acd59"
     },
     {
       "path": "sw.js",
@@ -119,8 +119,8 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "494e2135e0ba6c628586878e18fb7c351c52603c90d630fb9d4147256be130ba"
+      "sha256": "1200098738d0f1a77f23eaa462ad8529767f02d93bbf0e5262cf71ee65affcae"
     }
   ],
-  "updatedAt": "2026-08-20T13:16:41.163Z"
+  "updatedAt": "2026-08-20T13:20:19.109Z"
 }
