@@ -75,6 +75,7 @@
     webUpdateBlocked: false,    // ativação falhou repetidamente: parar de insistir
     apkCode: 0,
     dismissedVersion: '',
+    dismissedApk: 0,        // code do APK opcional dispensado (banner não volta)
     lastCheck: 0,
     lastResult: '',
     lastManifestVersion: ''
@@ -446,9 +447,9 @@
         if (config.checkApk && apk) {
           if (apk.code > APP_VERSION.code) {
             diag('Novo APK v' + apk.name + ' disponível (opcional — instale em Configurações se necessário).', 'info');
-            if (apkOptional) showApkUpdate(apk, apkUrl, apkFallbackUrl);
+            if (apkOptional && apk.code > state.dismissedApk) showApkUpdate(apk, apkUrl, apkFallbackUrl);
           }
-          else diag('APK atualizado (instalado ' + APP_VERSION.name + ' = publicado ' + apk.name + ').', 'info');
+          else { state.dismissedApk = apk.code; diag('APK atualizado (instalado ' + APP_VERSION.name + ' = publicado ' + apk.name + ').', 'info'); }
         }
       }
 
@@ -1063,7 +1064,11 @@
         if (url) installApkInternal(url, apk, fallbackUrl);
         else notify('URL do APK não configurada. Adicione em Configurações → Atualizações.', 'error');
       });
-      document.getElementById('apk-update-close').addEventListener('click', hideApkUpdate);
+      document.getElementById('apk-update-close').addEventListener('click', () => {
+        hideApkUpdate();
+        state.dismissedApk = apk.code;
+        saveState();
+      });
     }
     el.classList.add('show');
   }
