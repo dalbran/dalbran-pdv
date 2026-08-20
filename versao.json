@@ -1,9 +1,9 @@
 {
   "schema": 2,
-  "version": "1.0.0",
-  "code": 100,
-  "webVersion": "1.0.0",
-  "webCode": 100,
+  "version": "1.0.1",
+  "code": 101,
+  "webVersion": "1.0.1",
+  "webCode": 101,
   "nativeVersion": "0.0.14",
   "nativeCode": 14,
   "force": false,
@@ -19,7 +19,7 @@
   "web": [
     {
       "path": "index.html",
-      "sha256": "51b5bf2979648d562f3e0005e351812628fdc5b9bc9339bf87afde2ddaaf4270"
+      "sha256": "84a0d7ca7ae32da428b8f5f4cbcf96b39650a261ececb187d80642f1f7dd1eca"
     },
     {
       "path": "API.html",
@@ -87,7 +87,7 @@
     },
     {
       "path": "js/update-checker.js",
-      "sha256": "d0494c915979c74c21c4491ae1707436974e7840acc8025bb194f6b2b73046d1"
+      "sha256": "4f882a730d49edc519a8d0715f0044bc6cedd84426377b53a089f910520da941"
     },
     {
       "path": "js/api-admin.js",
@@ -122,5 +122,5 @@
       "sha256": "494e2135e0ba6c628586878e18fb7c351c52603c90d630fb9d4147256be130ba"
     }
   ],
-  "updatedAt": "2026-08-20T12:20:02.159Z"
+  "updatedAt": "2026-08-20T13:04:14.571Z"
 }
