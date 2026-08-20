@@ -4,7 +4,7 @@
   "description": "Sistema PWA de Gestão de Catálogo e Orçamentos - Dalbran Distribuidora",
   "start_url": "./index.html",
   "display": "standalone",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "background_color": "#0f172a",
   "theme_color": "#0284c7",
   "orientation": "any",

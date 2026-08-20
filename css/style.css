@@ -5431,4 +5431,105 @@ body.update-checking #btn-check-updates .ph-magnifying-glass::before {
 .update-modal-status.error { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
 .update-modal-status.success { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
 
+/* ===== Modal de número WhatsApp (cliente sem cadastro) ===== */
+.wa-number-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(2, 6, 23, 0.6);
+  animation: fadeIn 0.15s ease-out;
+}
+.wa-number-sheet {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface, #ffffff);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.4);
+  overflow: hidden;
+  animation: slideUp 0.2s ease-out;
+}
+.wa-number-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg, #25d366, #1da851);
+  color: #fff;
+}
+.wa-number-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.wa-number-header h3 .ph-whatsapp-logo { font-size: 1.3rem; }
+.wa-number-close {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wa-number-close:hover { background: rgba(255, 255, 255, 0.3); }
+.wa-number-desc {
+  padding: 1rem 1.15rem 0.25rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  line-height: 1.5;
+}
+.wa-number-desc strong { color: var(--text-main, #334155); }
+.wa-number-field {
+  padding: 0.75rem 1.15rem;
+}
+.wa-number-field label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main, #334155);
+  margin-bottom: 0.35rem;
+}
+.wa-number-field input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1.5px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-main, #334155);
+  background: var(--bg-light, #f8fafc);
+  outline: none;
+}
+.wa-number-field input:focus {
+  border-color: #25d366;
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.18);
+}
+.wa-number-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.35rem 1.15rem 1.15rem;
+}
+.wa-number-actions .btn { flex: 1; justify-content: center; }
+body.theme-dark .wa-number-sheet { background: #1e293b; }
+body.theme-dark .wa-number-desc strong { color: #e2e8f0; }
+body.theme-dark .wa-number-field input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
 

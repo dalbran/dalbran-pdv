@@ -2,6 +2,27 @@
  * Módulo de Integração e Formatação para WhatsApp
  */
 
+// Normaliza qualquer número para o padrão brasileiro do WhatsApp:
+// apenas dígitos, com código do país 55, DDD de 2 dígitos e o 9º dígito
+// inserido automaticamente quando um celular foi cadastrado sem ele.
+// Ex.: (11) 99999-8888 -> 5511999998888  |  11 3333-4444 -> 551133334444
+window.normalizeWhatsAppPhone = function (raw) {
+  if (!raw) return '';
+  let d = String(raw).replace(/[^\d]/g, '');      // mantém só dígitos
+  if (d.length === 0) return '';
+  if (!d.startsWith('55')) d = '55' + d;          // garante código do Brasil
+  else d = d.replace(/^55(0+)/, '55');            // remove zeros após o 55 (ex.: 55 0 11...)
+  const national = d.slice(2);
+  // Celular cadastrado com 10 dígitos (sem o 9º): insere o 9 após o DDD
+  if (national.length === 10) {
+    const ddd = national.slice(0, 2);
+    const sub = national.slice(2);
+    // faixas móveis começam em 6-9; 2-5 são fixos (não inserir 9)
+    if (/^[6-9]/.test(sub)) d = '55' + ddd + '9' + sub;
+  }
+  return d;
+};
+
 // Resolve a mensagem a usar para um tipo específico (recibo/orçamento/pedido),
 // com fallback para a mensagem padrão configurada.
 function resolveMessageFor(kind) {
@@ -16,7 +37,7 @@ async function sendOrcamentoWhatsApp() {
     return;
   }
 
-  if (typeof saveOrcamento === 'function' && !await saveOrcamento()) return;
+  if (typeof saveOrcamento === 'function' && !await saveOrcamento({ silent: true })) return;
 
   const settings = window.getCompanySettings ? window.getCompanySettings() : {};
   if (settings.compartilharWhatsAppAtivo === false) {
@@ -24,7 +45,15 @@ async function sendOrcamentoWhatsApp() {
     return;
   }
   const clienteNome = document.getElementById('orc-cliente-nome').value.trim() || 'Cliente';
-  const clienteTelefone = document.getElementById('orc-cliente-telefone').value.replace(/\D/g, '');
+  const clienteTelefoneRaw = document.getElementById('orc-cliente-whatsapp')?.value.trim()
+    || document.getElementById('orc-cliente-telefone')?.value.trim()
+    || (getSelectedClient()?.whatsapp || getSelectedClient()?.telefone || '');
+  let clienteTelefone = window.normalizeWhatsAppPhone(clienteTelefoneRaw) || clienteTelefoneRaw;
+  if (!clienteTelefone || clienteTelefone.length < 10) {
+    const typed = await requestWhatsAppNumber(clienteNome);
+    if (!typed) return;
+    clienteTelefone = typed;
+  }
   const vendedor = typeof getSelectedVendedor === 'function' ? getSelectedVendedor() : null;
   const totals = calculateTotals();
 
@@ -66,8 +95,7 @@ async function sendOrcamentoWhatsApp() {
   // Se houver número do cliente, envia direto. Senão, abre compartilhamento geral.
   let url = `https://api.whatsapp.com/send?text=${encodedText}`;
   if (clienteTelefone && clienteTelefone.length >= 10) {
-    const fullPhone = clienteTelefone.startsWith('55') ? clienteTelefone : `55${clienteTelefone}`;
-    url = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodedText}`;
+    url = `https://api.whatsapp.com/send?phone=${clienteTelefone}&text=${encodedText}`;
   }
 
   // Copia texto para a área de transferência como backup
@@ -113,7 +141,7 @@ function buildSavedDocumentWhatsAppText(saved) {
 }
 
 // Envia um documento salvo (venda/orçamento) via WhatsApp direto do histórico
-window.shareSavedDocumentWhatsApp = function(saved) {
+window.shareSavedDocumentWhatsApp = async function(saved) {
   const text = buildSavedDocumentWhatsAppText(saved);
   if (!text) {
     showToast('Registro sem itens para compartilhar.', 'error');
@@ -124,12 +152,15 @@ window.shareSavedDocumentWhatsApp = function(saved) {
     showToast('O compartilhamento por WhatsApp está desativado nas configurações.', 'error');
     return;
   }
-  const phone = String(saved.cliente?.whatsapp || saved.cliente?.telefone || '').replace(/\D/g, '');
+  let phone = window.normalizeWhatsAppPhone(saved.cliente?.whatsapp || saved.cliente?.telefone || '');
+  if (!phone || phone.length < 10) {
+    phone = await requestWhatsAppNumber(saved.cliente?.nome || 'Cliente') || '';
+    if (!phone) return;
+  }
   const encodedText = encodeURIComponent(text);
   let url = `https://api.whatsapp.com/send?text=${encodedText}`;
   if (phone && phone.length >= 10) {
-    const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
-    url = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodedText}`;
+    url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
   }
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
@@ -138,6 +169,66 @@ window.shareSavedDocumentWhatsApp = function(saved) {
   }
   window.open(url, '_blank');
 };
+
+// Modal para informar o número do WhatsApp na hora quando o cliente ainda
+// não possui telefone cadastrado. Resolve com o número normalizado ou null
+// caso o usuário cancele.
+function requestWhatsAppNumber(clientName) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'wa-number-overlay';
+    overlay.innerHTML = `
+      <div class="wa-number-sheet" role="dialog" aria-modal="true" aria-labelledby="wa-number-title">
+        <div class="wa-number-header">
+          <h3 id="wa-number-title"><i class="ph-fill ph-whatsapp-logo"></i> Enviar no WhatsApp</h3>
+          <button type="button" class="wa-number-close" aria-label="Fechar"><i class="ph ph-x"></i></button>
+        </div>
+        <p class="wa-number-desc">O cliente <strong>${escapeProductHtml(clientName || 'Cliente')}</strong> não possui número cadastrado. Informe o número para enviar agora.</p>
+        <div class="wa-number-field">
+          <label for="wa-number-input">Número do WhatsApp</label>
+          <input type="tel" id="wa-number-input" inputmode="numeric" autocomplete="off" placeholder="(00) 00000-0000">
+        </div>
+        <div class="wa-number-actions">
+          <button type="button" class="btn btn-outline" id="wa-number-cancel">Agora não</button>
+          <button type="button" class="btn btn-primary" id="wa-number-confirm"><i class="ph ph-paper-plane-tilt"></i> Enviar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector('#wa-number-input');
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      overlay.remove();
+      resolve(value);
+    };
+    overlay.querySelector('.wa-number-close').onclick = () => finish(null);
+    overlay.querySelector('#wa-number-cancel').onclick = () => finish(null);
+    overlay.addEventListener('click', e => { if (e.target === overlay) finish(null); });
+    overlay.querySelector('#wa-number-confirm').onclick = () => {
+      const digits = String(input.value).replace(/[^\d]/g, '');
+      const normalized = window.normalizeWhatsAppPhone ? window.normalizeWhatsAppPhone(digits) : digits;
+      if (normalized.length < 10) {
+        showToast('Informe um número válido com DDD.', 'error');
+        input.focus();
+        return;
+      }
+      finish(normalized);
+    };
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') overlay.querySelector('#wa-number-confirm').click(); });
+    input.addEventListener('input', () => {
+      const digits = String(input.value).replace(/[^\d]/g, '').slice(0, 11);
+      let formatted = '';
+      if (digits.length > 0) formatted = '(' + digits.slice(0, 2);
+      if (digits.length > 2) formatted += ') ';
+      if (digits.length > 6) formatted += digits.slice(2, 7) + '-' + digits.slice(7);
+      else if (digits.length > 2) formatted += digits.slice(2);
+      input.value = formatted;
+    });
+    setTimeout(() => { input.focus(); }, 60);
+  });
+}
 
 // Compartilhamento nativo (Android/iOS) do documento salvo
 window.shareSavedDocument = function(saved) {

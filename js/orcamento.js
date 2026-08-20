@@ -13,6 +13,7 @@ let sidebarSearch = '';
 let sidebarPage = 1;
 let selectedVendedorId = '';
 let lastFinalizedSale = null;
+let justFinalizedSaleId = null;
 let pdvQuickSelection = { productId: '', variationIndex: null };
 let pdvQuickPage = 1;
 let orcamentoQuickPage = 1;
@@ -705,6 +706,10 @@ function renderMobileOrcamentoView(viewId = 'view-orcamento', mode = 'orcamento'
         </div>
 
         <div class="receipt-actions-footer">
+          <button class="btn-receipt-action btn-receipt-whatsapp" id="btn-receipt-whatsapp" style="width:100%; border-color:#25d366; color:#16a34a; background:#ecfdf5; margin-bottom:8px;">
+            <i class="ph-fill ph-whatsapp-logo"></i>
+            <span>Enviar no WhatsApp</span>
+          </button>
           <div class="actions-grid">
             <button class="btn-receipt-action" id="btn-receipt-print">
               <i class="ph ph-printer"></i>
@@ -1211,6 +1216,7 @@ window.compactClientSection = function() {
   if (body) body.style.display = 'none';
   if (summary) { summary.textContent = clientName; summary.style.display = 'block'; }
   if (icon) icon.className = 'ph ph-caret-down';
+  if (typeof ensureSaleClientSaved === 'function') ensureSaleClientSaved();
   markQuoteDirty();
 };
 
@@ -1268,6 +1274,7 @@ window.compactClientSectionDesktop = function() {
   }
   if (icon) icon.className = 'ph ph-caret-down';
   if (text) text.textContent = 'Expandir';
+  if (typeof ensureSaleClientSaved === 'function') ensureSaleClientSaved();
 };
 
 window.switchDocumentTab = function(tab) {
@@ -1391,14 +1398,95 @@ function renderMobileSavedTab() {
 }
 
 window.openQuoteView = function(reset = true) {
-  if (reset) { cart = []; savedQuoteId = null; currentQuoteNumber = null; selectedClientId = ''; }
+  if (reset) { cart = []; savedQuoteId = null; currentQuoteNumber = null; selectedClientId = ''; justFinalizedSaleId = null; }
   renderOrcamentoView('view-orcamento', 'orcamento');
 };
 
 window.openPdvView = function(reset = true) {
-  if (reset) { cart = []; savedQuoteId = null; currentQuoteNumber = null; selectedClientId = ''; }
+  if (reset) { cart = []; savedQuoteId = null; currentQuoteNumber = null; selectedClientId = ''; justFinalizedSaleId = null; }
   renderOrcamentoView('view-pdv', 'pdv');
 };
+
+// Limpa o rascunho (carrinho e campos) após concluir uma venda, para que o
+// operador não veja o pedido anterior na tela e evite gerar duplicidade.
+function resetPdvDraft() {
+  cart = [];
+  savedQuoteId = null;
+  currentQuoteNumber = null;
+  selectedClientId = '';
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setVal('orc-cliente-nome', '');
+  setVal('orc-cliente-fantasia', '');
+  setVal('orc-cliente-whatsapp', '');
+  setVal('orc-cliente-telefone', '');
+  setVal('orc-cliente-email', '');
+  setVal('orc-cliente-documento', '');
+  const selCliente = document.getElementById('orc-select-cliente'); if (selCliente) selCliente.value = '';
+  setVal('orc-forma-pagamento', 'pix');
+  setVal('orc-desconto', '0.00');
+  setVal('orc-prazo-entrega', '');
+  setVal('orc-observacao', '');
+  setVal('orc-boleto-url', '');
+  const pixPanel = document.getElementById('orc-pix-panel'); if (pixPanel) pixPanel.classList.add('hidden');
+  const boletoPanel = document.getElementById('orc-boleto-panel'); if (boletoPanel) boletoPanel.classList.add('hidden');
+  renderCartTable();
+  updateTotals();
+  if (typeof renderPdvQuickProducts === 'function') renderPdvQuickProducts();
+}
+
+const clientPhoneDigits = value => String(value || '').replace(/\D/g, '');
+
+// Cadastra (ou atualiza) um cliente digitado na hora no PDV/orçamentos na
+// coleção `clients`, reutilizando o cadastro existente (mesmo nome ou
+// telefone/whatsapp) para não criar duplicidades. Retorna o id do cliente.
+async function ensureSaleClientSaved() {
+  try {
+    const newClientSelected = document.getElementById('btn-src-novo')?.classList.contains('active');
+    const nameInput = document.getElementById('orc-cliente-nome');
+    const nome = (nameInput?.value || '').trim();
+    if (!newClientSelected || !nome) return null;
+
+    const whatsapp = (document.getElementById('orc-cliente-whatsapp')?.value || '').trim();
+    const telefone = (document.getElementById('orc-cliente-telefone')?.value || '').trim();
+    const normWhats = clientPhoneDigits(whatsapp);
+    const normTel = clientPhoneDigits(telefone);
+    const normNome = normalizeSearchText(nome);
+
+    const existing = (window.clientsCache || []).find(c =>
+      normalizeSearchText(c.nome || '') === normNome ||
+      (normWhats && clientPhoneDigits(c.whatsapp) === normWhats) ||
+      (normTel && clientPhoneDigits(c.telefone) === normTel)
+    );
+
+    const payload = {
+      nome,
+      nomeFantasia: (document.getElementById('orc-cliente-fantasia')?.value || '').trim(),
+      email: (document.getElementById('orc-cliente-email')?.value || '').trim(),
+      telefone: normTel ? (window.normalizeWhatsAppPhone ? (window.normalizeWhatsAppPhone(telefone) || telefone) : telefone) : '',
+      whatsapp: normWhats ? (window.normalizeWhatsAppPhone ? (window.normalizeWhatsAppPhone(whatsapp) || whatsapp) : whatsapp) : '',
+      documento: (document.getElementById('orc-cliente-documento')?.value || '').trim(),
+      tipoPreco: document.getElementById('orc-select-tabela')?.value || 'varejo',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    let id = existing?.id || null;
+    if (id) {
+      await db.collection('clients').doc(id).set(payload, { merge: true });
+    } else {
+      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      const ref = await db.collection('clients').add(payload);
+      id = ref.id;
+      window.clientsCache.push({ id, ...payload });
+      if (typeof window.populateOrcamentoClientsSelect === 'function') window.populateOrcamentoClientsSelect();
+    }
+    selectedClientId = id;
+    const sel = document.getElementById('orc-select-cliente'); if (sel) sel.value = id;
+    return id;
+  } catch (err) {
+    console.error('Erro ao salvar cliente da venda:', err);
+    return null;
+  }
+}
 
 function activateDocumentView(mode) {
   const isVenda = mode === 'venda' || mode === 'pdv';
@@ -1409,6 +1497,7 @@ function activateDocumentView(mode) {
 }
 
 function loadSavedDocument(saved) {
+  justFinalizedSaleId = null;
   cart = Array.isArray(saved.itens) ? saved.itens.map(item => ({ ...item })) : [];
   savedQuoteId = saved.id;
   currentQuoteNumber = saved.numero || null;
@@ -1662,6 +1751,10 @@ function closeThermalReceiptModal() {
     modal.classList.remove('active');
     modal.classList.add('hidden');
     modal.style.display = 'none';
+  }
+  // Ao fechar o recibo de uma venda concluída, limpa a tela para uma nova venda.
+  if (documentMode === 'pdv' && justFinalizedSaleId) {
+    resetPdvDraft();
   }
 }
 
@@ -2016,6 +2109,7 @@ function bindOrcamentoEvents() {
         precoUnitario: precoUnit,
         subtotal: qtd * precoUnit
       });
+      justFinalizedSaleId = null; // inicia nova venda: não compartilha mais a venda anterior
 
       renderCartTable();
       markQuoteDirty();
@@ -2045,11 +2139,21 @@ function bindOrcamentoEvents() {
 
   const btnWhatsapp = document.getElementById('btn-whatsapp-orcamento');
   if (btnWhatsapp) {
-    btnWhatsapp.onclick = () => typeof sendOrcamentoWhatsApp === 'function' && sendOrcamentoWhatsApp();
+    btnWhatsapp.onclick = () => {
+      if (justFinalizedSaleId && lastFinalizedSale) {
+        if (typeof window.shareSavedDocumentWhatsApp === 'function') return window.shareSavedDocumentWhatsApp(lastFinalizedSale);
+      }
+      if (typeof sendOrcamentoWhatsApp === 'function') sendOrcamentoWhatsApp();
+    };
   }
 
   const btnPrint = document.getElementById('btn-print-cupom');
-  if (btnPrint) btnPrint.onclick = openPrintModal;
+  if (btnPrint) btnPrint.onclick = () => {
+    if (justFinalizedSaleId && lastFinalizedSale) {
+      if (typeof printThermalReceipt === 'function') return printThermalReceipt(lastFinalizedSale);
+    }
+    openPrintModal();
+  };
 
   const btnClosePrint = document.getElementById('btn-close-print-modal');
   if (btnClosePrint) btnClosePrint.onclick = closePrintModal;
@@ -2071,6 +2175,12 @@ function bindOrcamentoEvents() {
 
   const btnReceiptImage = document.getElementById('btn-receipt-image');
   if (btnReceiptImage) btnReceiptImage.onclick = generateReceiptCanvasImage;
+
+  const btnReceiptWhatsapp = document.getElementById('btn-receipt-whatsapp');
+  if (btnReceiptWhatsapp) btnReceiptWhatsapp.onclick = () => {
+    if (typeof window.shareSavedDocumentWhatsApp === 'function' && lastFinalizedSale) window.shareSavedDocumentWhatsApp(lastFinalizedSale);
+    else showToast('Número do cliente indisponível para envio.', 'error');
+  };
 
   const searchSaved = document.getElementById('search-saved-input');
   if (searchSaved) searchSaved.oninput = () => renderMobileSavedTab();
@@ -2202,15 +2312,21 @@ function updateTotals() {
   if (countElem) countElem.textContent = `${itemsCount} unidade${itemsCount !== 1 ? 's' : ''}`;
 }
 
-async function saveOrcamento() {
+async function saveOrcamento(options = {}) {
   if (cart.length === 0) {
     showToast(documentMode === 'pdv' ? "Adicione pelo menos 1 item ao carrinho para concluir a venda." : "Adicione ao menos um item ao orçamento.", "error");
     return false;
   }
 
   const isPdv = documentMode === 'pdv';
+
+  // Cliente novo digitado na hora é cadastrado na coleção `clients`.
+  if (typeof ensureSaleClientSaved === 'function') {
+    await ensureSaleClientSaved();
+  }
   const clienteNome = document.getElementById('orc-cliente-nome')?.value.trim() || (selectedClientId ? (getSelectedClient()?.nome || 'Cliente') : 'Consumidor Final (Balcão)');
-  const clienteTelefone = document.getElementById('orc-cliente-whatsapp')?.value.trim() || document.getElementById('orc-cliente-telefone')?.value.trim() || (getSelectedClient()?.whatsapp || getSelectedClient()?.telefone || '');
+  const clienteTelefoneRaw = document.getElementById('orc-cliente-whatsapp')?.value.trim() || document.getElementById('orc-cliente-telefone')?.value.trim() || (getSelectedClient()?.whatsapp || getSelectedClient()?.telefone || '');
+  const clienteTelefone = window.normalizeWhatsAppPhone ? window.normalizeWhatsAppPhone(clienteTelefoneRaw) : clienteTelefoneRaw;
   const totals = calculateTotals();
   const settings = window.getCompanySettings ? window.getCompanySettings() : {};
   const user = typeof auth !== 'undefined' ? auth.currentUser : null;
@@ -2234,7 +2350,7 @@ async function saveOrcamento() {
       nome: clienteNome,
       nomeFantasia: document.getElementById('orc-cliente-fantasia')?.value.trim() || selectedClient?.nomeFantasia || '',
       telefone: clienteTelefone,
-      whatsapp: document.getElementById('orc-cliente-whatsapp')?.value.trim() || selectedClient?.whatsapp || '',
+      whatsapp: window.normalizeWhatsAppPhone ? window.normalizeWhatsAppPhone(document.getElementById('orc-cliente-whatsapp')?.value.trim() || selectedClient?.whatsapp || '') : (document.getElementById('orc-cliente-whatsapp')?.value.trim() || selectedClient?.whatsapp || ''),
       email: document.getElementById('orc-cliente-email')?.value.trim() || selectedClient?.email || '',
       documento: document.getElementById('orc-cliente-documento')?.value.trim() || selectedClient?.documento || '',
       tipoPreco: document.getElementById('orc-select-tabela')?.value || selectedClient?.tipoPreco || 'varejo'
@@ -2275,9 +2391,10 @@ async function saveOrcamento() {
           message: `${clienteNome} • ${formatCurrency(totals.totalGeral)}`
         });
       }
-      openThermalReceiptModal(lastFinalizedSale);
+      justFinalizedSaleId = lastFinalizedSale.id;
+      if (!options.silent) openThermalReceiptModal(lastFinalizedSale);
     } else {
-      window.switchDocumentTab('salvos');
+      if (!options.silent) window.switchDocumentTab('salvos');
     }
 
     return true;

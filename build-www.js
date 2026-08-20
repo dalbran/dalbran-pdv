@@ -61,8 +61,8 @@ console.log('www/ directory updated successfully.');
 const crypto = require('crypto');
 
 // Versão do APK — MANTER em sincronia com android/app/build.gradle
-const APK_NAME = '0.0.12';
-const APK_CODE = 12;
+const APK_NAME = '0.0.13';
+const APK_CODE = 13;
 
 // Publica o APK também em www/apk/ (GitHub Pages) apenas quando solicitado
 // explicitamente, para que o APK nunca seja empacotado dentro dele mesmo.
@@ -135,6 +135,16 @@ function generateManifest() {
     } catch (e) {}
     fs.copyFileSync(apkPath, path.join(apkDestDir, currentApkName));
     console.log(`APK copiado para www/apk/${currentApkName}`);
+  } else {
+    // Sem a flag --with-apk, o APK não entra no bundle do app. Remove qualquer
+    // APK deixado em www/apk/ para que nunca seja empacotado dentro dele mesmo.
+    const apkDestDir = path.join(destDir, 'apk');
+    try {
+      fs.readdirSync(apkDestDir).forEach(f => {
+        const old = path.join(apkDestDir, f);
+        try { fs.unlinkSync(old); } catch (e) {}
+      });
+    } catch (e) {}
   }
 
   const manifest = {
