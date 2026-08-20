@@ -1,0 +1,25 @@
+{
+  "name": "Dalbran Distribuidora",
+  "short_name": "Dalbran",
+  "description": "Sistema PWA de Gestão de Catálogo e Orçamentos - Dalbran Distribuidora",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "version": "0.0.13",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192x192/0284c7/ffffff?text=DALBRAN",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://via.placeholder.com/512x512/0284c7/ffffff?text=DALBRAN",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

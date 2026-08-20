@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo Oficial - Dalbran Distribuidora LTDA</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Ícones e Fontes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Biblioteca para exportar como Imagem -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="navbar">
+        <div class="container nav-container">
+            <a href="#" class="brand-logo">
+                <i class="fa-solid fa-truck-fast logo-icon"></i>
+                <span class="brand-name">Dalbran<span>Distribuidora</span></span>
+            </a>
+            
+            <div class="search-bar">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Buscar por produto, fragrância ou categoria..." oninput="filterProducts()">
+            </div>
+
+            <div class="nav-actions" style="display:flex;align-items:center;gap:6px;">
+                <button type="button" onclick="shareOnWhatsApp()" class="btn" title="Enviar no WhatsApp" style="background:#22c55e;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;">
+                    <i class="fa-brands fa-whatsapp"></i> <span class="hide-mobile">WhatsApp</span>
+                </button>
+                <button type="button" onclick="copyCatalogLink()" class="btn" title="Copiar link" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.25);padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;">
+                    <i class="fa-solid fa-copy"></i> <span class="hide-mobile">Copiar</span>
+                </button>
+                <button type="button" onclick="shareNative()" class="btn" title="Compartilhar nativo" style="background:#0284c7;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;">
+                    <i class="fa-solid fa-share-nodes"></i> <span class="hide-mobile">Compartilhar</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Banner -->
+    <section class="hero">
+        <div class="container">
+            <span class="hero-badge">Dalbran Distribuidora LTDA</span>
+            <h1>Catálogo Institucional & Profissional</h1>
+            <p>Soluções em limpeza, higienização e descartáveis de alta rentabilidade para sua empresa ou residência.</p>
+            
+            <!-- Botões de Impressão, Download e Compartilhamento -->
+            <div class="export-buttons" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;">
+                <button onclick="shareOnWhatsApp()" class="btn btn-export" style="background:#22c55e;color:#fff;border:none;">
+                    <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                </button>
+                <button onclick="copyCatalogLink()" class="btn btn-export" style="background:#3b82f6;color:#fff;border:none;">
+                    <i class="fa-solid fa-copy"></i> Copiar Link
+                </button>
+                <button onclick="shareNative()" class="btn btn-export" style="background:#0284c7;color:#fff;border:none;">
+                    <i class="fa-solid fa-share-nodes"></i> Compartilhar
+                </button>
+                <button onclick="printCatalog()" class="btn btn-export">
+                    <i class="fa-solid fa-print"></i> PDF / Imprimir
+                </button>
+                <button onclick="exportAsImage(event)" class="btn btn-export btn-export-img">
+                    <i class="fa-solid fa-file-image"></i> Baixar Imagem
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="container main-content" id="catalogContent">
+        <!-- Filtros por Setor (Categorias) -->
+        <section class="category-section">
+            <h2 class="section-title"><i class="fa-solid fa-layer-group"></i> Categorias de Produtos</h2>
+            <div class="category-filters" id="categoryFilters">
+                <button class="filter-btn active" onclick="filterCategory('todos')">
+                    <i class="fa-solid fa-border-all"></i> Todos
+                </button>
+                <button class="filter-btn" onclick="filterCategory('desinfetantes')">
+                    <i class="fa-solid fa-spray-can-sparkles"></i> Desinfetantes
+                </button>
+                <button class="filter-btn" onclick="filterCategory('limpeza')">
+                    <i class="fa-solid fa-pump-soap"></i> Limpeza Geral
+                </button>
+                <button class="filter-btn" onclick="filterCategory('tratamento')">
+                    <i class="fa-solid fa-sparkles"></i> Tratamento de Pisos
+                </button>
+                <button class="filter-btn" onclick="filterCategory('higiene')">
+                    <i class="fa-solid fa-hand-holding-hand"></i> Higiene Pessoal
+                </button>
+                <button class="filter-btn" onclick="filterCategory('automotivo')">
+                    <i class="fa-solid fa-car"></i> Linha Automotiva
+                </button>
+                <button class="filter-btn" onclick="filterCategory('descartaveis')">
+                    <i class="fa-solid fa-box-open"></i> Descartáveis & Acessórios
+                </button>
+            </div>
+        </section>
+
+        <!-- Product Grid -->
+        <section>
+            <div class="product-grid" id="productGrid">
+                <!-- Os produtos serão renderizados dinamicamente pelo JS -->
+            </div>
+
+            <!-- Estado Vazio -->
+            <div id="noResults" class="no-results hidden">
+                <i class="fa-solid fa-magnifying-glass-minus"></i>
+                <h3>Nenhum produto encontrado</h3>
+                <p>Tente buscar por outro termo ou selecione uma categoria diferente.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal de Detalhes do Produto -->
+    <div class="modal-overlay hidden" id="productModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+            <div class="modal-body">
+                <div class="modal-image-container">
+                    <img id="modalImage" src="" alt="Produto">
+                </div>
+                <div class="modal-info">
+                    <span class="modal-category" id="modalCategory">Setor</span>
+                    <h2 id="modalTitle">Nome do Produto</h2>
+                    <p class="modal-desc" id="modalDesc">Descrição do produto...</p>
+                    
+                    <div class="modal-meta">
+                        <div class="meta-item">
+                            <i class="fa-solid fa-box-archive"></i>
+                            <div>
+                                <strong>Embalagem / Rendimento</strong>
+                                <span id="modalVolume">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detalhamento das Fragrâncias/Variações -->
+                    <div class="fragrance-box" id="fragranceBox">
+                        <h3><i class="fa-solid fa-list-check"></i> Opções / Variações Disponíveis:</h3>
+                        <div class="fragrance-list" id="fragranceList">
+                            <!-- Injetado via JS -->
+                        </div>
+                    </div>
+
+                    <a id="modalWhatsappBtn" href="#" target="_blank" class="btn btn-whatsapp-modal">
+                        <i class="fa-brands fa-whatsapp"></i> Solicitar Orçamento no WhatsApp
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" id="contato">
+        <div class="container footer-content">
+            <div class="footer-info">
+                <h3>Dalbran Distribuidora LTDA</h3>
+                <p><strong>CNPJ:</strong> 03.822.789/0001-54</p>
+                <p>Soluções eficientes para limpeza profissional e institucional.</p>
+            </div>
+            <div class="footer-contacts">
+                <p>
+                    <a href="https://wa.me/5521998852318?text=Olá!%20Gostaria%20de%20atendimento." target="_blank" class="footer-link-wa">
+                        <i class="fa-brands fa-whatsapp"></i> (21) 99885-2318 — Fale no WhatsApp
+                    </a>
+                </p>
+                <p class="footer-email">
+                    <i class="fa-solid fa-envelope"></i> dalbrandobrasil@gmail.com
+                </p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Dalbran Distribuidora LTDA. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
