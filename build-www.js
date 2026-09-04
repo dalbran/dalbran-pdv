@@ -49,8 +49,8 @@ function copyRecursiveSync(src, dest) {
 // Versão NATIVA/APK — MANTER em sincronia com android/app/build.gradle.
 // Só deve aumentar quando houver mudança real no container nativo
 // (plugin, permissão, Manifest, código Java/Kotlin, assinatura, libs).
-const APK_NAME = '0.0.14';
-const APK_CODE = 14;
+const APK_NAME = '0.0.15';
+const APK_CODE = 15;
 
 // Versão WEB/MODULAR — controla tudo que pode ser atualizado sem novo APK
 // (HTML, CSS, JS, telas, módulos, imagens, traduções, configurações remotas).
