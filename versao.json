@@ -1,25 +1,25 @@
 {
   "schema": 2,
-  "version": "1.0.5",
-  "code": 105,
-  "webVersion": "1.0.5",
-  "webCode": 105,
-  "nativeVersion": "0.0.15",
-  "nativeCode": 15,
+  "version": "1.0.6",
+  "code": 106,
+  "webVersion": "1.0.6",
+  "webCode": 106,
+  "nativeVersion": "0.0.16",
+  "nativeCode": 16,
   "force": false,
   "apk": {
-    "name": "0.0.15",
-    "code": 15,
+    "name": "0.0.16",
+    "code": 16,
     "url": "https://dalbran.github.io/dalbran-pdv/apk/Dalbran-v{VERSION}.apk",
     "fallbackUrl": "https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk",
-    "sha256": "ff33eb28facf4615577839539ff6b271db4624d9605cefdcc994de883dd3e504",
+    "sha256": "446dedf507ce12c515dc6b31d17c7e393cde2a00366f7a978a51f072df301988",
     "required": false,
     "reason": ""
   },
   "web": [
     {
       "path": "index.html",
-      "sha256": "5d839816361bddf5f5a5a67ef66a0bb5d85759a0d054c2da033f97e0411f88f4"
+      "sha256": "c1e889b63f2fbcd975049e6330f1fac57a0864296b19a8f6e73880db916dba14"
     },
     {
       "path": "API.html",
@@ -31,7 +31,7 @@
     },
     {
       "path": "css/style.css",
-      "sha256": "5bcaf3b8359137811723574d6369f2c2444b370a5225823150b53c1f1c75ed68"
+      "sha256": "ef7a3f1df3a1e448e57f3c06d6a4d7de99b57369d67e07036c92581079a828f4"
     },
     {
       "path": "css/api-admin.css",
@@ -59,11 +59,11 @@
     },
     {
       "path": "js/configuracoes.js",
-      "sha256": "28e00b563d92cea817c651156bc07e0a2ac68ad9dedfd3c6366b659d0bf65a2d"
+      "sha256": "04e3f4ae435a03b243863f56e8d3aaf776d7e8823c65b91637d226e8fcf69361"
     },
     {
       "path": "js/orcamento.js",
-      "sha256": "d79087fb85c0c2127793f7f2016148a769f2ac6df8b59f511340e6d397627f83"
+      "sha256": "f95998e0caa768b95b8c023b4b11ccc3e4a983cdc0ced6a0db9cd9eece4ed51c"
     },
     {
       "path": "js/whatsapp.js",
@@ -87,7 +87,7 @@
     },
     {
       "path": "js/update-checker.js",
-      "sha256": "cb7d570c1feb7194db3bbe40161873ee7848510866c51c664f49d6f3b77f9c6a"
+      "sha256": "8b98b894b2d08277f67cd8d670e0949943014198b8a2f5c35df29f1a4d025fdf"
     },
     {
       "path": "js/api-admin.js",
@@ -122,5 +122,5 @@
       "sha256": "1200098738d0f1a77f23eaa462ad8529767f02d93bbf0e5262cf71ee65affcae"
     }
   ],
-  "updatedAt": "2026-09-04T09:05:15.468Z"
+  "updatedAt": "2026-09-04T09:20:24.247Z"
 }

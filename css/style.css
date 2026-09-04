@@ -2176,6 +2176,25 @@ body.theme-dark .quick-action-icon {
 .product-search-result { width:100%; display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.65rem .75rem; border:1px solid var(--border); border-radius:6px; background:#f8fafc; color:var(--text-main); text-align:left; cursor:pointer; }
 .pdv-volume-options, .pdv-fragrance-options { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
 .pdv-fragrance-options.hidden { display:none !important; }
+/* Bottom-sheet de adição rápida: corpo rolável + botão Adicionar sempre visível */
+.pdv-quantity-modal { position:fixed; inset:0; z-index:100000; }
+.pdv-quantity-modal.hidden { display:none !important; }
+.pdv-quantity-backdrop { position:absolute; inset:0; background:rgba(2,6,23,.6); }
+.pdv-quantity-sheet { position:absolute; left:0; right:0; bottom:0; width:100%; max-width:640px; margin:0 auto; max-height:92vh; max-height:92dvh; display:flex; flex-direction:column; background:#fff; color:var(--text-main); border-radius:18px 18px 0 0; padding:.4rem 1rem calc(.9rem + env(safe-area-inset-bottom)); box-shadow:0 -12px 40px rgba(2,6,23,.35); }
+.pdv-quantity-sheet .sheet-handle { width:44px; height:5px; border-radius:99px; background:#cbd5e1; margin:.25rem auto .5rem; }
+.pdv-quantity-close { position:absolute; top:.6rem; right:.7rem; width:36px; height:36px; border-radius:50%; border:1px solid var(--border-color); background:#f8fafc; color:var(--text-main); font-size:1rem; cursor:pointer; }
+.pdv-quantity-sheet h3 { margin:.2rem 2.2rem .1rem 0; font-size:1.05rem; font-weight:800; }
+.pdv-quantity-instruction { margin:0 0 .7rem; font-size:.82rem; color:var(--text-muted); }
+.pdv-quantity-body { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:.4rem; }
+.pdv-quantity-confirm { flex-shrink:0; width:100%; min-height:54px; margin-top:.6rem; border:none; border-radius:12px; background:var(--primary); color:#fff; font-size:1rem; font-weight:800; cursor:pointer; touch-action:manipulation; }
+.pdv-quantity-confirm:active { filter:brightness(.94); }
+.pdv-quantity-controls label { display:block; font-size:.82rem; font-weight:700; margin-bottom:.4rem; }
+.pdv-quantity-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+.pdv-quantity-stepper { display:flex; align-items:center; gap:6px; }
+.pdv-quantity-stepper button { width:44px; height:44px; border-radius:10px; border:1px solid #cbd5e1; background:#f8fafc; font-size:1.2rem; font-weight:800; cursor:pointer; touch-action:manipulation; }
+.pdv-quantity-stepper input { width:64px; height:44px; text-align:center; font-size:1.05rem; font-weight:800; border:1.5px solid var(--border-color); border-radius:10px; }
+.pdv-quick-adds { display:flex; gap:6px; }
+.pdv-quick-adds button { min-width:48px; height:44px; padding:0 .6rem; border-radius:10px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; font-weight:800; cursor:pointer; touch-action:manipulation; }
 /* Grade multi-fragrâncias (seleção rápida com quantidades) */
 .pdv-frag-total { grid-column:1 / -1; display:flex; justify-content:space-between; align-items:center; padding:.5rem .75rem; border-radius:8px; background:#eff6ff; border:1px solid #bfdbfe; font-size:.85rem; font-weight:600; color:#1d4ed8; }
 .pdv-frag-total b { font-size:1rem; }
