@@ -46,8 +46,8 @@
 
   // Versão NATIVA instalada — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.14',
-    code: 14
+    name: '0.0.15',
+    code: 15
   };
   window.__APP_VERSION__ = APP_VERSION.name;
   window.__APP_CODE__ = APP_VERSION.code;
