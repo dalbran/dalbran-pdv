@@ -14,7 +14,7 @@ let sidebarPage = 1;
 let selectedVendedorId = '';
 let lastFinalizedSale = null;
 let justFinalizedSaleId = null;
-let pdvQuickSelection = { productId: '', variationIndex: null };
+let pdvQuickSelection = { productId: '', variationIndex: null, fragrances: {}, editingIndex: -1 };
 let pdvQuickPage = 1;
 let orcamentoQuickPage = 1;
 
@@ -70,6 +70,138 @@ function getSelectedClient() {
 function getVariationPrice(variation, priceTable) {
   const price = priceTable === 'atacado' ? variation.precoAtacado : priceTable === 'notaFiscal' ? (variation.precoNotaFiscal !== undefined ? variation.precoNotaFiscal : variation.precoVarejo) : priceTable === 'especial' ? (variation.precoEspecial !== undefined ? variation.precoEspecial : variation.precoAtacado) : variation.precoVarejo;
   return price;
+}
+
+// ---------------------------------------------------------------
+// Variantes de item (genérico: fragrância, cor, sabor, etc.)
+// Um item do carrinho pode carregar:
+//   - fragrancia: string única (legado, ex.: "Maçã" ou "Padrão")
+//   - fragrancias: [{ nome, qtd }] (novo, multi-seleção agrupada)
+// O banco continua guardando o nome completo; a abreviação é só visual.
+// ---------------------------------------------------------------
+function variantesDoItem(item) {
+  if (!item) return [];
+  if (Array.isArray(item.fragrancias) && item.fragrancias.length) {
+    return item.fragrancias
+      .map(v => ({ nome: String(v.nome || v.name || ''), qtd: Number(v.qtd ?? v.quantidade) || 0 }))
+      .filter(v => v.nome);
+  }
+  const single = String(item.fragrancia || '');
+  if (single && single !== 'Padrão') return [{ nome: single, qtd: Number(item.quantidade) || 0 }];
+  return [];
+}
+
+// Abreviação inteligente só para renderização compacta (ex.: Maçã→Mac).
+function abreviarVariante(nome) {
+  const original = String(nome || '').trim();
+  const flat = original.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (!flat || flat.length <= 3) return original;
+  const ab = flat.slice(0, 3);
+  return ab.charAt(0).toUpperCase() + ab.slice(1).toLowerCase();
+}
+
+// Resumo compacto: "5 Maçã • 5 Coco • 5 Neutro" (ignora qtd 0).
+function resumoVariantes(item, opts) {
+  const abrev = !!(opts && opts.abreviar);
+  return variantesDoItem(item)
+    .filter(v => (Number(v.qtd) || 0) > 0)
+    .map(v => `${v.qtd} ${(abrev ? abreviarVariante(v.nome) : v.nome)}`)
+    .join(' • ');
+}
+
+// Quebra o resumo em linhas de no máx. maxChars sem cortar palavras.
+function quebrarResumoVariantes(item, maxChars, opts) {
+  const parts = variantesDoItem(item)
+    .filter(v => (Number(v.qtd) || 0) > 0)
+    .map(v => `${v.qtd} ${(opts && opts.abreviar ? abreviarVariante(v.nome) : v.nome)}`);
+  const lines = [];
+  let cur = '';
+  parts.forEach(p => {
+    const cand = cur ? cur + ' • ' + p : p;
+    if (cur && cand.length > maxChars) { lines.push(cur); cur = p; }
+    else cur = cand;
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// Linha HTML do resumo de variantes para o carrinho (ou legado Frag:).
+function linhaVarianteItem(item) {
+  const resumo = resumoVariantes(item);
+  if (resumo) return `<small class="cart-variant-summary">${escapeProductHtml(resumo)}</small>`;
+  if (item.fragrancia && item.fragrancia !== 'Padrão') return `<small>Frag: ${escapeProductHtml(item.fragrancia)}</small>`;
+  return '';
+}
+
+// Linha "20 UN x R$ 11,99" para recibos/impressão (preço unitário sempre visível).
+function linhaUnidadeItem(item) {
+  return `${item.quantidade || 0} UN x ${formatCurrency(item.precoUnitario || 0)}`;
+}
+
+// Fragmento "<br><small>resumo das variantes</small>" para recibos/cupons.
+// opts: { abreviar, maxChars, classe }. Sem variantes, usa a fragrância única legada.
+function fragmentoVarianteImpressao(item, opts) {
+  const abrev = !!(opts && opts.abreviar);
+  const max = (opts && opts.maxChars) || 0;
+  let linhas = [];
+  if (variantesDoItem(item).length) {
+    linhas = max > 0 ? quebrarResumoVariantes(item, max, { abreviar: abrev }) : [resumoVariantes(item, { abreviar: abrev })];
+    linhas = linhas.filter(Boolean);
+  }
+  if (!linhas.length && item.fragrancia && item.fragrancia !== 'Padrão') linhas = [String(item.fragrancia)];
+  if (!linhas.length) return '';
+  const cls = (opts && opts.classe) ? ` class="${opts.classe}"` : '';
+  const style = (opts && opts.estilo) ? ` style="${opts.estilo}"` : '';
+  return '<br><small' + cls + style + '>' + linhas.map(escapeProductHtml).join('<br>') + '</small>';
+}
+
+// Opções de compactação por formato de impressão.
+function opcoesVariantePorFormato(format) {
+  if (format === '58mm') return { abreviar: true, maxChars: 30 };
+  if (format === '80mm') return { abreviar: false, maxChars: 42 };
+  return { abreviar: false, maxChars: 0 };
+}
+
+function recalcularItemAgrupado(item) {
+  const vars = variantesDoItem(item);
+  if (!vars.length) return item;
+  const total = vars.reduce((acc, v) => acc + (Number(v.qtd) || 0), 0);
+  item.quantidade = total;
+  item.subtotal = Number((Number(item.precoUnitario || 0) * total).toFixed(2));
+  return item;
+}
+
+function chaveAgrupamentoItem(item) {
+  return [(item.produtoId || ''), normalizeSearchText(item.volume), Number(item.precoUnitario) || 0].join('|');
+}
+
+// Agrupa no carrinho quando produto+volume+preço forem iguais; soma o
+// detalhamento por variante. Retorna o índice do item. Itens sem variante
+// somam quantidade normalmente.
+function mesclarItemNoCarrinho(carrinho, novo) {
+  const key = chaveAgrupamentoItem(novo);
+  const novoVars = variantesDoItem(novo);
+  for (let i = 0; i < carrinho.length; i++) {
+    const cur = carrinho[i];
+    if (chaveAgrupamentoItem(cur) !== key) continue;
+    const map = new Map();
+    variantesDoItem(cur).forEach(v => map.set(v.nome, (map.get(v.nome) || 0) + (Number(v.qtd) || 0)));
+    novoVars.forEach(v => map.set(v.nome, (map.get(v.nome) || 0) + (Number(v.qtd) || 0)));
+    if (map.size) {
+      cur.fragrancias = [...map.entries()].map(([nome, qtd]) => ({ nome, qtd }));
+      recalcularItemAgrupado(cur);
+    } else {
+      cur.quantidade = (Number(cur.quantidade) || 0) + (Number(novo.quantidade) || 0);
+      cur.subtotal = Number((Number(cur.precoUnitario || 0) * cur.quantidade).toFixed(2));
+    }
+    return i;
+  }
+  if (novoVars.length) {
+    novo.fragrancias = novoVars.map(v => ({ nome: v.nome, qtd: v.qtd }));
+    recalcularItemAgrupado(novo);
+  }
+  carrinho.push(novo);
+  return carrinho.length - 1;
 }
 
 function markQuoteDirty() { savedQuoteId = null; }
@@ -200,34 +332,41 @@ function getPdvQuickQuantityModal() {
     modal.querySelectorAll('[data-pdv-volume-index]').forEach(item => item.classList.toggle('active', item === button));
     const variation = document.getElementById('orc-select-variacao');
     if (variation) { variation.value = String(pdvQuickSelection.variationIndex); variation.dispatchEvent(new Event('change')); }
-    
+
     const product = (window.productsCache || []).find(p => p.id === pdvQuickSelection.productId);
     const selectedVar = product?.variacoes?.[pdvQuickSelection.variationIndex];
-    
-    if (documentMode === 'orcamento' && selectedVar && selectedVar.fragrancias && selectedVar.fragrancias.length > 0) {
-      const fragContainer = modal.querySelector('.pdv-fragrance-options');
-      fragContainer.innerHTML = selectedVar.fragrancias.map(f => `<button type="button" class="pdv-fragrance-option pdv-volume-option" data-pdv-fragrance="${escapeProductHtml(f)}"><strong>${escapeProductHtml(f)}</strong></button>`).join('');
-      fragContainer.classList.remove('hidden');
+
+    if (selectedVar && selectedVar.fragrancias && selectedVar.fragrancias.length > 0) {
+      renderPdvFragGrid(modal, selectedVar.fragrancias);
       modal.querySelector('.pdv-quantity-controls').classList.add('hidden');
-      modal.querySelector('.pdv-quantity-instruction').textContent = 'Escolha a fragrância para continuar.';
-      pdvQuickSelection.fragrance = null;
+      modal.querySelector('.pdv-quantity-instruction').textContent = 'Toque nas fragrâncias e informe as quantidades.';
     } else {
       modal.querySelector('.pdv-fragrance-options').classList.add('hidden');
       modal.querySelector('.pdv-quantity-instruction').textContent = 'Informe a quantidade de unidades.';
       modal.querySelector('.pdv-quantity-controls').classList.remove('hidden');
       focusQuantityInputAtEnd();
     }
+    atualizarPdvFragTotal(modal);
   };
+  // Grade multi-fragrâncias: steppers + digitação direta (delegação).
   modal.querySelector('.pdv-fragrance-options').onclick = event => {
-    const button = event.target.closest('[data-pdv-fragrance]');
-    if (!button) return;
-    pdvQuickSelection.fragrance = button.dataset.pdvFragrance;
-    modal.querySelectorAll('[data-pdv-fragrance]').forEach(item => item.classList.toggle('active', item === button));
-    const fragSelect = document.getElementById('orc-select-fragrancia');
-    if (fragSelect) { fragSelect.value = pdvQuickSelection.fragrance; }
-    modal.querySelector('.pdv-quantity-instruction').textContent = 'Informe a quantidade de unidades.';
-    modal.querySelector('.pdv-quantity-controls').classList.remove('hidden');
-    focusQuantityInputAtEnd();
+    const btn = event.target.closest('[data-frag-inc],[data-frag-dec]');
+    if (!btn) return;
+    const row = event.target.closest('[data-frag-name]');
+    const input = row ? row.querySelector('[data-frag-input]') : null;
+    if (!input) return;
+    const delta = btn.hasAttribute('data-frag-inc') ? 1 : -1;
+    input.value = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
+    pdvQuickSelection.fragrances[row.dataset.fragName] = Number(input.value) || 0;
+    atualizarPdvFragTotal(modal);
+  };
+  modal.querySelector('.pdv-fragrance-options').oninput = event => {
+    const input = event.target.closest('[data-frag-input]');
+    if (!input) return;
+    const row = event.target.closest('[data-frag-name]');
+    input.value = String(Math.max(0, parseInt(input.value, 10) || 0));
+    pdvQuickSelection.fragrances[row.dataset.fragName] = Number(input.value) || 0;
+    atualizarPdvFragTotal(modal);
   };
   modal.querySelectorAll('[data-pdv-quantity]').forEach(button => button.onclick = () => {
     const input = modal.querySelector('#pdv-quick-quantity-input');
@@ -240,6 +379,14 @@ function getPdvQuickQuantityModal() {
   });
   modal.querySelector('.pdv-quantity-confirm').onclick = () => {
     if (pdvQuickSelection.variationIndex === null) return;
+    const fragTotal = totalPdvFragMap();
+    const gridVisible = !modal.querySelector('.pdv-fragrance-options').classList.contains('hidden');
+    if (gridVisible && fragTotal > 0) {
+      confirmarItemAgrupadoDoModal(modal);
+      close();
+      return;
+    }
+    if (gridVisible && fragTotal === 0) { showToast('Informe a quantidade de ao menos uma fragrância.', 'error'); return; }
     const quantity = Math.max(1, parseInt(modal.querySelector('#pdv-quick-quantity-input').value, 10) || 1);
     const quantityInput = document.getElementById('orc-input-qtd');
     if (quantityInput) quantityInput.value = quantity;
@@ -249,34 +396,111 @@ function getPdvQuickQuantityModal() {
   return modal;
 }
 
-function openPdvQuickQuantityModal(productId) {
+// Desenha a grade multi-fragrâncias com steppers. `preset` = { nome: qtd } (edição).
+function renderPdvFragGrid(modal, fragrancias, preset) {
+  const fragContainer = modal.querySelector('.pdv-fragrance-options');
+  pdvQuickSelection.fragrances = {};
+  fragContainer.innerHTML = `<div class="pdv-frag-total">Total: <b>0</b> un.</div>` + (fragrancias || []).map(f => {
+    const name = String(f);
+    const qtd = Math.max(0, parseInt(preset && preset[name], 10) || 0);
+    pdvQuickSelection.fragrances[name] = qtd;
+    return `<div class="pdv-frag-row" data-frag-name="${escapeProductHtml(name)}">`
+      + `<span class="pdv-frag-name">${escapeProductHtml(name)}</span>`
+      + `<div class="pdv-frag-stepper"><button type="button" data-frag-dec aria-label="Diminuir">−</button>`
+      + `<input data-frag-input type="text" inputmode="numeric" pattern="[0-9]*" value="${qtd}" autocomplete="off">`
+      + `<button type="button" data-frag-inc aria-label="Aumentar">+</button></div></div>`;
+  }).join('');
+  fragContainer.classList.remove('hidden');
+  atualizarPdvFragTotal(modal);
+}
+
+function totalPdvFragMap() {
+  return Object.values(pdvQuickSelection.fragrances || {}).reduce((acc, q) => acc + (Number(q) || 0), 0);
+}
+
+function atualizarPdvFragTotal(modal) {
+  const total = totalPdvFragMap();
+  const el = modal.querySelector('.pdv-frag-total b');
+  if (el) el.textContent = total;
+  const btn = modal.querySelector('.pdv-quantity-confirm');
+  if (btn) btn.textContent = pdvQuickSelection.editingIndex >= 0 ? 'Salvar alterações' : (total > 0 ? `Adicionar (${total} un.)` : 'Adicionar ao carrinho');
+}
+
+// Cria (ou atualiza, em edição) o item agrupado a partir da grade.
+function confirmarItemAgrupadoDoModal(modal) {
+  const product = (window.productsCache || []).find(p => p.id === pdvQuickSelection.productId);
+  const variacao = product?.variacoes?.[pdvQuickSelection.variationIndex];
+  if (!product || !variacao) return;
+  const tabela = document.getElementById('orc-select-tabela')?.value || 'varejo';
+  const precoUnit = Number(getVariationPrice(variacao, tabela)) || 0;
+  const frags = Object.entries(pdvQuickSelection.fragrances || {})
+    .map(([nome, qtd]) => ({ nome, qtd: Number(qtd) || 0 }))
+    .filter(v => v.qtd > 0);
+  if (!frags.length) return;
+  const item = {
+    produtoId: product.id,
+    nome: product.nome || product.name || 'Produto sem nome',
+    volume: variacao.volume,
+    precoUnitario: precoUnit,
+    quantidade: 0,
+    subtotal: 0,
+    fragrancias: frags
+  };
+  recalcularItemAgrupado(item);
+  if (pdvQuickSelection.editingIndex >= 0 && cart[pdvQuickSelection.editingIndex]) {
+    cart[pdvQuickSelection.editingIndex] = item;
+  } else {
+    mesclarItemNoCarrinho(cart, item);
+  }
+  justFinalizedSaleId = null;
+  renderCartTable();
+  markQuoteDirty();
+  updateTotals();
+  showToast(pdvQuickSelection.editingIndex >= 0 ? 'Item atualizado!' : 'Item adicionado!', 'info');
+}
+
+function openPdvQuickQuantityModal(productId, editIndex) {
   const product = (window.productsCache || []).find(item => item.id === productId);
   if (!product) return;
+  const editing = Number.isInteger(editIndex) && editIndex >= 0 && cart[editIndex] ? cart[editIndex] : null;
   const modal = getPdvQuickQuantityModal();
   modal.classList.toggle('orcamento-quantity-modal', documentMode !== 'pdv');
   const variations = product.variacoes?.length ? product.variacoes : [{ volume: 'Padrão', precoVarejo: 0 }];
-  pdvQuickSelection = { productId, variationIndex: variations.length === 1 ? 0 : null, fragrance: null };
+  let startVariation = variations.length === 1 ? 0 : null;
+  let preset = null;
+  if (editing) {
+    const vi = variations.findIndex(v => (v.volume || 'Padrão') === (editing.volume || 'Padrão'));
+    if (vi >= 0) startVariation = vi;
+    preset = {};
+    variantesDoItem(editing).forEach(v => { preset[v.nome] = v.qtd; });
+  }
+  pdvQuickSelection = { productId, variationIndex: startVariation, fragrances: {}, editingIndex: editing ? editIndex : -1 };
   modal.querySelector('#pdv-quantity-title').textContent = product.nome || product.name || 'Produto';
-  modal.querySelector('.pdv-volume-options').innerHTML = variations.map((variation, index) => `<button type="button" data-pdv-volume-index="${index}" class="pdv-volume-option"><strong>${escapeProductHtml(variation.volume || 'Padrão')}</strong><small>${formatCurrency(getVariationPrice(variation, document.getElementById('orc-select-tabela')?.value || 'varejo'))}</small></button>`).join('');
-  
+  modal.querySelector('.pdv-volume-options').innerHTML = variations.map((variation, index) => `<button type="button" data-pdv-volume-index="${index}" class="pdv-volume-option${index === startVariation ? ' active' : ''}"><strong>${escapeProductHtml(variation.volume || 'Padrão')}</strong><small>${formatCurrency(getVariationPrice(variation, document.getElementById('orc-select-tabela')?.value || 'varejo'))}</small></button>`).join('');
+
   const controls = modal.querySelector('.pdv-quantity-controls');
   const fragContainer = modal.querySelector('.pdv-fragrance-options');
   fragContainer.classList.add('hidden');
-  
-  modal.querySelector('#pdv-quick-quantity-input').value = 1;
-  
-  if (variations.length === 1) {
-    const variationSelect = document.getElementById('orc-select-variacao');
-    if (variationSelect) { variationSelect.value = '0'; variationSelect.dispatchEvent(new Event('change')); }
-    
-    const selectedVar = variations[0];
-    if (documentMode === 'orcamento' && selectedVar.fragrancias && selectedVar.fragrancias.length > 0) {
-      fragContainer.innerHTML = selectedVar.fragrancias.map(f => `<button type="button" class="pdv-fragrance-option pdv-volume-option" data-pdv-fragrance="${escapeProductHtml(f)}"><strong>${escapeProductHtml(f)}</strong></button>`).join('');
-      fragContainer.classList.remove('hidden');
+
+  modal.querySelector('#pdv-quick-quantity-input').value = editing ? (editing.quantidade || 1) : 1;
+
+  const showFragFor = (selectedVar) => {
+    if (selectedVar && selectedVar.fragrancias && selectedVar.fragrancias.length > 0) {
+      renderPdvFragGrid(modal, selectedVar.fragrancias, preset);
       controls.classList.add('hidden');
       modal.querySelector('.pdv-volume-options').classList.add('hidden');
-      modal.querySelector('.pdv-quantity-instruction').textContent = 'Escolha a fragrância para continuar.';
-    } else {
+      modal.querySelector('.pdv-quantity-instruction').textContent = 'Toque nas fragrâncias e informe as quantidades.';
+      return true;
+    }
+    return false;
+  };
+
+  if (variations.length === 1 || (editing && startVariation !== null)) {
+    const variationSelect = document.getElementById('orc-select-variacao');
+    if (variationSelect && startVariation !== null) { variationSelect.value = String(startVariation); variationSelect.dispatchEvent(new Event('change')); }
+
+    const selectedVar = startVariation !== null ? variations[startVariation] : null;
+    if (!showFragFor(selectedVar)) {
       controls.classList.remove('hidden');
       modal.querySelector('.pdv-volume-options').classList.add('hidden');
       modal.querySelector('.pdv-quantity-instruction').textContent = 'Informe a quantidade de unidades.';
@@ -287,10 +511,18 @@ function openPdvQuickQuantityModal(productId) {
     modal.querySelector('.pdv-volume-options').classList.remove('hidden');
     modal.querySelector('.pdv-quantity-instruction').textContent = 'Escolha a litragem para continuar.';
   }
-  
+
+  atualizarPdvFragTotal(modal);
   modal.classList.remove('hidden');
   modal.classList.add('open');
 }
+
+// Reabre o item do carrinho no modal rápido para editar as fragrâncias.
+window.editarItemCarrinho = function(index) {
+  const item = cart[index];
+  if (!item || !item.produtoId) { showToast('Este item não pode ser editado aqui.', 'error'); return; }
+  openPdvQuickQuantityModal(item.produtoId, index);
+};
 
 function renderProductSearchResults(searchTerm = '') {
   const container = document.getElementById('orc-search-results');
@@ -1567,7 +1799,11 @@ window.openSavedQuoteActions = function(id) {
     <h3 style="font-size:1.1rem; font-weight:800; margin-bottom:4px;">${titleText} ${escapeProductHtml(saved.numero || saved.id)}</h3>
     <p style="font-size:0.85rem; color:#64748b; margin-bottom:12px;">${escapeProductHtml(saved.cliente?.nome || 'Cliente não informado')} · <strong>${formatCurrency(saved.financeiro?.totalGeral)}</strong></p>
     <div class="saved-document-items" style="background:#f8fafc; border-radius:10px; padding:10px; margin-bottom:14px; max-height:160px; overflow-y:auto;">
-      ${(saved.itens || []).map(item => `<div style="display:flex; justify-content:space-between; font-size:0.85rem; padding:4px 0;"><span>${item.quantidade}x ${escapeProductHtml(item.nome || 'Item')} (${escapeProductHtml(item.volume || '')})</span><strong>${formatCurrency(item.subtotal)}</strong></div>`).join('') || '<p class="empty-state">Sem itens.</p>'}
+      ${(saved.itens || []).map(item => {
+        const resumo = resumoVariantes(item);
+        const leg = (!resumo && item.fragrancia && item.fragrancia !== 'Padrão') ? `<br><small style="color:#64748b;">Frag: ${escapeProductHtml(item.fragrancia)}</small>` : '';
+        return `<div style="display:flex; justify-content:space-between; font-size:0.85rem; padding:4px 0;"><span>${item.quantidade}x ${escapeProductHtml(item.nome || 'Item')} (${escapeProductHtml(item.volume || '')})${resumo ? `<br><small style="color:#64748b;">${escapeProductHtml(resumo)}</small>` : leg}</span><strong>${formatCurrency(item.subtotal)}</strong></div>`;
+      }).join('') || '<p class="empty-state">Sem itens.</p>'}
     </div>
     <div class="saved-quote-action-buttons" style="display:flex; flex-direction:column; gap:8px;">
       <button type="button" id="btn-edit-saved" class="btn btn-primary btn-block">Editar ${titleText}</button>
@@ -1689,7 +1925,7 @@ function openThermalReceiptModal(sale) {
 
   let itemsHtml = (sale.itens || []).map(i => `
     <tr>
-      <td style="width:50%;">${escapeProductHtml(i.nome)} (${escapeProductHtml(i.volume || '')})</td>
+      <td style="width:50%;">${escapeProductHtml(i.nome)} (${escapeProductHtml(i.volume || '')})<br><small class="thermal-unit">${escapeProductHtml(linhaUnidadeItem(i))}</small>${fragmentoVarianteImpressao(i, { maxChars: 42, classe: 'thermal-variant' })}</td>
       <td style="width:15%; text-align:center;">${i.quantidade}</td>
       <td style="width:35%; text-align:right;">${formatCurrency(i.subtotal || (i.precoUnitario * i.quantidade))}</td>
     </tr>
@@ -2100,7 +2336,9 @@ function bindOrcamentoEvents() {
 
       const variacao = product.variacoes[vIndex];
 
-      cart.push({
+      // Agrupa automaticamente por produto+volume+preço (mesma configuração
+      // soma na mesma linha, inclusive somando o detalhamento de variantes).
+      mesclarItemNoCarrinho(cart, {
         produtoId: product.id,
         nome: product.nome || product.name || 'Produto sem nome',
         volume: variacao.volume,
@@ -2196,29 +2434,35 @@ function generateCartRows(forceDesktop = null) {
   if (desktop) {
     if (cart.length === 0) return '<tr><td colspan="5" class="desktop-cart-empty">Nenhum item adicionado.</td></tr>';
     return cart.map((item, index) => `
-      <tr><td><strong>${escapeProductHtml(item.nome)}</strong> (${escapeProductHtml(item.volume)})<br><small>Frag: ${escapeProductHtml(item.fragrancia || 'Padrão')}</small></td><td><div class="quantity-control quantity-control-small"><button type="button" onclick="changeCartQuantity(${index}, -1)">−</button><input type="number" step="1" min="1" value="${item.quantidade}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" onchange="setCartQuantity(${index}, this.value)"><button type="button" onclick="changeCartQuantity(${index}, 1)">+</button></div></td><td>${formatCurrency(item.precoUnitario)}</td><td>${formatCurrency(item.subtotal)}</td><td><button type="button" class="desktop-remove-item" onclick="removeCartItem(${index})">✖</button></td></tr>`).join('');
+      <tr><td><strong>${escapeProductHtml(item.nome)}</strong> (${escapeProductHtml(item.volume)})<br>${linhaVarianteItem(item)}</td><td><div class="quantity-control quantity-control-small"><button type="button" onclick="changeCartQuantity(${index}, -1)">−</button><input type="number" step="1" min="1" value="${item.quantidade}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" onchange="setCartQuantity(${index}, this.value)"><button type="button" onclick="changeCartQuantity(${index}, 1)">+</button></div></td><td>${formatCurrency(item.precoUnitario)}</td><td>${formatCurrency(item.subtotal)}</td><td style="white-space:nowrap;">${item.produtoId ? `<button type="button" class="desktop-edit-item" onclick="editarItemCarrinho(${index})" title="Editar variantes">✎</button>` : ''}<button type="button" class="desktop-remove-item" onclick="removeCartItem(${index})">✖</button></td></tr>`).join('');
   }
   if (cart.length === 0) {
     return `<div class="cart-empty-msg" style="padding:16px; text-align:center; color:#64748b; font-size:0.85rem; border:1px dashed #e2e8f0; border-radius:10px; background:#fafafa;"><i class="ph ph-shopping-cart" style="font-size:1.4rem;"></i><br>Nenhum item adicionado</div>`;
   }
 
-  return cart.map((item, index) => `
+  return cart.map((item, index) => {
+    const temVariantes = variantesDoItem(item).length > 0;
+    const resumo = temVariantes ? `<div class="cart-variant-summary">${escapeProductHtml(resumoVariantes(item))}</div>` : (item.fragrancia && item.fragrancia !== 'Padrão' ? `<div class="cart-variant-summary">Frag: ${escapeProductHtml(item.fragrancia)}</div>` : '');
+    return `
     <div class="cart-item item-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
       <div class="cart-item-info" style="flex:1;">
         <div class="cart-item-title item-name" style="font-size:0.875rem; font-weight:700; color:#0f172a;">${escapeProductHtml(item.nome)} (${escapeProductHtml(item.volume)})</div>
-        <div class="cart-item-details item-meta" style="font-size:0.75rem; color:#64748b;">${item.quantidade}x ${formatCurrency(item.precoUnitario)} ${item.fragrancia && item.fragrancia !== 'Padrão' ? `• Frag: ${escapeProductHtml(item.fragrancia)}` : ''}</div>
+        <div class="cart-item-details item-meta" style="font-size:0.75rem; color:#64748b;">${item.quantidade}x ${formatCurrency(item.precoUnitario)}</div>
+        ${resumo}
       </div>
       <div class="cart-item-price item-price" style="font-size:0.95rem; font-weight:800; color:#059669;">
         ${formatCurrency(item.subtotal)}
       </div>
       <div class="cart-qty-controls" style="display:flex; align-items:center; gap:6px;">
-        <button class="btn-qty" type="button" onclick="changeCartQuantity(${index}, -1)" style="width:30px; height:30px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-weight:700; cursor:pointer;">-</button>
+        ${temVariantes
+          ? `${item.produtoId ? `<button class="btn-qty" type="button" onclick="editarItemCarrinho(${index})" title="Editar variantes" style="width:30px; height:30px; border-radius:8px; border:1px solid #93c5fd; background:#eff6ff; color:#2563eb; cursor:pointer;">✎</button>` : ''}`
+          : `<button class="btn-qty" type="button" onclick="changeCartQuantity(${index}, -1)" style="width:30px; height:30px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-weight:700; cursor:pointer;">-</button>
         <span style="font-weight:700; font-size:0.85rem; min-width:18px; text-align:center;">${item.quantidade}</span>
-        <button class="btn-qty" type="button" onclick="changeCartQuantity(${index}, 1)" style="width:30px; height:30px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-weight:700; cursor:pointer;">+</button>
+        <button class="btn-qty" type="button" onclick="changeCartQuantity(${index}, 1)" style="width:30px; height:30px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-weight:700; cursor:pointer;">+</button>`}
         <button class="btn-qty btn-qty-danger" type="button" onclick="removeCartItem(${index})" style="width:30px; height:30px; border-radius:8px; border:1px solid #fca5a5; background:#fff5f5; color:#ef4444; cursor:pointer;"><i class="ph ph-trash"></i></button>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 function renderCartTable() {
@@ -2243,6 +2487,8 @@ window.setCartQuantity = (index, value) => {
     renderCartTable();
     return;
   }
+  // Item agrupado: quantidade só via edição das variantes (mantém o detalhamento).
+  if (variantesDoItem(cart[index]).length) { window.editarItemCarrinho(index); renderCartTable(); return; }
   cart[index].quantidade = quantity;
   cart[index].subtotal = Number((cart[index].precoUnitario * quantity).toFixed(2));
   markQuoteDirty();
@@ -2252,6 +2498,8 @@ window.setCartQuantity = (index, value) => {
 
 window.changeCartQuantity = (index, delta) => {
   if (!cart[index]) return;
+  // Item agrupado: quantidade só via edição das variantes (mantém o detalhamento).
+  if (variantesDoItem(cart[index]).length) { window.editarItemCarrinho(index); return; }
   const newQty = cart[index].quantidade + delta;
   if (newQty <= 0) {
     window.removeCartItem(index);
@@ -2477,7 +2725,7 @@ async function printQuote(printType) {
         ${cart.map(item => `
           <tr>
             <td>${item.quantidade}x</td>
-            <td>${escapeProductHtml(item.nome)} ${escapeProductHtml(item.volume)}<br><small style="color:#555;">${escapeProductHtml(item.fragrancia)}</small></td>
+            <td>${escapeProductHtml(item.nome)} ${escapeProductHtml(item.volume)}<br><small>${escapeProductHtml(linhaUnidadeItem(item))}</small>${fragmentoVarianteImpressao(item, opcoesVariantePorFormato(printType))}</td>
             ${isThermal ? '' : `<td>${formatCurrency(item.precoUnitario)}</td>`}
             <td style="text-align:right;">${formatCurrency(item.subtotal)}</td>
           </tr>
@@ -2628,7 +2876,7 @@ async function runNativePrint(printArea) {
   window.setTimeout(hidePrintArea, 15000);
 }
 
-function printThermalReceipt(sale) {
+function printThermalReceipt(sale, format) {
   if (!sale?.itens?.length) {
     showToast('Não há comprovante de venda para imprimir.', 'error');
     return;
@@ -2636,7 +2884,9 @@ function printThermalReceipt(sale) {
   const settings = window.getCompanySettings ? window.getCompanySettings() : {};
   const totals = sale.financeiro || {};
   const printArea = getDedicatedPrintArea();
-  printArea.className = 'print-document print-80mm';
+  const cupom = format || settings.formatoPadraoCupom || '80mm';
+  const isThermal = cupom === '80mm' || cupom === '58mm';
+  printArea.className = `print-document print-${isThermal ? cupom : '80mm'}`;
   printArea.style.fontFamily = "'Courier New', Courier, monospace";
   printArea.style.fontSize = `${settings.tamanhoFonteCupom || 11}px`;
   printArea.innerHTML = `
@@ -2648,7 +2898,7 @@ function printThermalReceipt(sale) {
     </header>
     <div class="print-title">COMPROVANTE DE VENDA Nº ${escapeProductHtml(sale.numero || sale.id || '')}</div>
     <div class="print-meta"><span>Data: ${formatDateTime(sale.createdAt?.toDate ? sale.createdAt.toDate() : new Date())}</span><span>Cliente: ${escapeProductHtml(sale.cliente?.nome || 'Consumidor Final')}</span><span>Pagamento: ${escapeProductHtml(String(totals.formaPag || 'PIX').toUpperCase())}</span></div>
-    <table class="print-items"><thead><tr><th>Qtd</th><th>Item</th><th>Total</th></tr></thead><tbody>${sale.itens.map(item => `<tr><td>${item.quantidade}x</td><td>${escapeProductHtml(item.nome)} ${escapeProductHtml(item.volume || '')}<br><small>${escapeProductHtml(item.fragrancia || '')}</small></td><td>${formatCurrency(item.subtotal || (item.precoUnitario * item.quantidade))}</td></tr>`).join('')}</tbody></table>
+    <table class="print-items"><thead><tr><th>Qtd</th><th>Item</th><th>Total</th></tr></thead><tbody>${sale.itens.map(item => `<tr><td>${item.quantidade}x</td><td>${escapeProductHtml(item.nome)} ${escapeProductHtml(item.volume || '')}<br><small>${escapeProductHtml(linhaUnidadeItem(item))}</small>${fragmentoVarianteImpressao(item, opcoesVariantePorFormato(isThermal ? cupom : '80mm'))}</td><td>${formatCurrency(item.subtotal || (item.precoUnitario * item.quantidade))}</td></tr>`).join('')}</tbody></table>
     <section class="print-totals"><p><span>Subtotal</span><span>${formatCurrency(totals.subtotal || 0)}</span></p><p><span>Desconto</span><span>- ${formatCurrency(totals.desconto || 0)}</span></p><p class="print-total"><span>TOTAL</span><span>${formatCurrency(totals.totalGeral || 0)}</span></p></section>
     <footer class="print-footer"><strong>${escapeProductHtml(settings.mensagemPadrao || 'Obrigado pela preferência!')}</strong></footer>`;
   runNativePrint(printArea);
@@ -2663,7 +2913,7 @@ window.printSavedDocument = function(saved) {
   }
   const isVenda = saved.tipo === 'venda';
   if (isVenda) {
-    if (typeof printThermalReceipt === 'function') printThermalReceipt(saved);
+    if (typeof printThermalReceipt === 'function') printThermalReceipt(saved, (window.getCompanySettings ? window.getCompanySettings() : {}).formatoPadraoCupom || '80mm');
     else openThermalReceiptModal(saved);
     return;
   }
@@ -2695,7 +2945,7 @@ window.printSavedDocument = function(saved) {
       <tbody>${saved.itens.map(item => `
         <tr>
           <td>${item.quantidade}x</td>
-          <td>${escapeProductHtml(item.nome)} ${escapeProductHtml(item.volume || '')}<br><small style="color:#555;">${escapeProductHtml(item.fragrancia || '')}</small></td>
+          <td>${escapeProductHtml(item.nome)} ${escapeProductHtml(item.volume || '')}<br><small>${escapeProductHtml(linhaUnidadeItem(item))}</small>${fragmentoVarianteImpressao(item, opcoesVariantePorFormato(format))}</td>
           ${isThermal ? '' : `<td>${formatCurrency(item.precoUnitario)}</td>`}
           <td style="text-align:right;">${formatCurrency(item.subtotal || (item.precoUnitario * item.quantidade))}</td>
         </tr>`).join('')}

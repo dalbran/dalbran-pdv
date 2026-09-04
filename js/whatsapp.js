@@ -23,6 +23,29 @@ window.normalizeWhatsAppPhone = function (raw) {
   return d;
 };
 
+// Resumo de variantes do item (usa os helpers de orcamento.js quando disponíveis,
+// com fallback para a fragrância única legada).
+function resumoVarianteWhatsApp(item) {
+  try {
+    if (typeof resumoVariantes === 'function') {
+      const r = resumoVariantes(item);
+      if (r) return `   ${r}\n`;
+    }
+  } catch (e) {}
+  if (item && item.fragrancia && item.fragrancia !== 'Padrão') return `   Fragrância: ${item.fragrancia}\n`;
+  return '';
+}
+
+function resumoVarianteHtml(item) {
+  try {
+    if (typeof fragmentoVarianteImpressao === 'function') {
+      return fragmentoVarianteImpressao(item, { maxChars: 42, estilo: 'font-size:10px;' });
+    }
+  } catch (e) {}
+  if (item && item.fragrancia && item.fragrancia !== 'Padrão') return `<br><small style="font-size:10px;">${escapeProductHtml(item.fragrancia)}</small>`;
+  return '';
+}
+
 // Resolve a mensagem a usar para um tipo específico (recibo/orçamento/pedido),
 // com fallback para a mensagem padrão configurada.
 function resolveMessageFor(kind) {
@@ -74,7 +97,7 @@ async function sendOrcamentoWhatsApp() {
 
   cart.forEach((item, index) => {
     text += `${index + 1}. ${item.quantidade}x *${item.nome}* (${item.volume}) — *${formatCurrency(item.subtotal)}*\n`;
-    if (item.fragrancia && item.fragrancia !== 'Padrão') text += `   Fragrância: ${item.fragrancia}\n`;
+    text += resumoVarianteWhatsApp(item);
   });
 
   text += `-----------------------------------\n`;
@@ -125,7 +148,7 @@ function buildSavedDocumentWhatsAppText(saved) {
 
   saved.itens.forEach((item, index) => {
     text += `${index + 1}. ${item.quantidade}x *${item.nome}* (${item.volume}) — *${formatCurrency(item.subtotal || (item.precoUnitario * item.quantidade))}*\n`;
-    if (item.fragrancia && item.fragrancia !== 'Padrão') text += `   Fragrância: ${item.fragrancia}\n`;
+    text += resumoVarianteWhatsApp(item);
   });
 
   text += `-----------------------------------\n`;
@@ -244,7 +267,7 @@ window.shareSavedDocument = function(saved) {
 
   const itemsHtml = (saved.itens || []).map(i => `
     <tr>
-      <td style="width:50%;">${escapeProductHtml(i.nome)} (${escapeProductHtml(i.volume || '')})</td>
+      <td style="width:50%;">${escapeProductHtml(i.nome)} (${escapeProductHtml(i.volume || '')})${resumoVarianteHtml(i)}</td>
       <td style="width:15%; text-align:center;">${i.quantidade}</td>
       <td style="width:35%; text-align:right;">${formatCurrency(i.subtotal || (i.precoUnitario * i.quantidade))}</td>
     </tr>

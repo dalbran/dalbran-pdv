@@ -2176,6 +2176,21 @@ body.theme-dark .quick-action-icon {
 .product-search-result { width:100%; display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.65rem .75rem; border:1px solid var(--border); border-radius:6px; background:#f8fafc; color:var(--text-main); text-align:left; cursor:pointer; }
 .pdv-volume-options, .pdv-fragrance-options { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
 .pdv-fragrance-options.hidden { display:none !important; }
+/* Grade multi-fragrâncias (seleção rápida com quantidades) */
+.pdv-frag-total { grid-column:1 / -1; display:flex; justify-content:space-between; align-items:center; padding:.5rem .75rem; border-radius:8px; background:#eff6ff; border:1px solid #bfdbfe; font-size:.85rem; font-weight:600; color:#1d4ed8; }
+.pdv-frag-total b { font-size:1rem; }
+.pdv-frag-row { grid-column:1 / -1; display:flex; justify-content:space-between; align-items:center; gap:.6rem; padding:.45rem .6rem; border:1px solid var(--border-color); border-radius:8px; background:#fff; }
+.pdv-frag-name { font-weight:700; font-size:.85rem; color:var(--text-main); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pdv-frag-stepper { display:flex; align-items:center; gap:6px; }
+.pdv-frag-stepper button { width:38px; height:38px; border-radius:9px; border:1px solid #cbd5e1; background:#f8fafc; font-size:1.1rem; font-weight:800; color:var(--text-main); cursor:pointer; touch-action:manipulation; }
+.pdv-frag-stepper button:active { background:#e2e8f0; }
+.pdv-frag-stepper input { width:56px; height:38px; text-align:center; font-size:1rem; font-weight:800; border:1.5px solid var(--border-color); border-radius:9px; background:#fff; color:var(--text-main); }
+/* Resumo compacto de variantes no carrinho */
+.cart-variant-summary { display:block; font-size:.72rem; color:#64748b; line-height:1.45; overflow-wrap:anywhere; }
+.desktop-edit-item { border:1px solid #93c5fd; background:#eff6ff; color:#2563eb; border-radius:6px; padding:2px 8px; margin-right:4px; cursor:pointer; font-weight:700; }
+/* Recibo térmico: unidade em destaque normal, variantes em fonte menor */
+.thermal-unit { font-size:.92em; }
+.thermal-variant { font-size:.82em; color:#333; }
 .pdv-volume-option { min-height:64px; padding:10px; border:1.5px solid var(--border-color); border-radius:var(--radius-sm); background:#f8fafc; color:var(--text-main); text-align:left; cursor:pointer; }
 .product-search-result:hover { border-color:var(--primary); background:#eff6ff; }
 .product-search-result small, .product-search-empty { color:var(--text-muted); font-size:.8rem; }

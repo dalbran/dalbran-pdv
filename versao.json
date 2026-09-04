@@ -1,9 +1,9 @@
 {
   "schema": 2,
-  "version": "1.0.3",
-  "code": 103,
-  "webVersion": "1.0.3",
-  "webCode": 103,
+  "version": "1.0.4",
+  "code": 104,
+  "webVersion": "1.0.4",
+  "webCode": 104,
   "nativeVersion": "0.0.14",
   "nativeCode": 14,
   "force": false,
@@ -19,7 +19,7 @@
   "web": [
     {
       "path": "index.html",
-      "sha256": "047d46bdfe032f3d28375d184896cfa5affa34ef228777fd429b47633b69638e"
+      "sha256": "0107d3da8fe12a1c51f38c747238aa6e819b06d14c79a2029633228a6598b29d"
     },
     {
       "path": "API.html",
@@ -31,7 +31,7 @@
     },
     {
       "path": "css/style.css",
-      "sha256": "c26f462a9e44db5be0257fbaa1e0dc345692125e95061a20b67a5f3bc5edd6b6"
+      "sha256": "5bcaf3b8359137811723574d6369f2c2444b370a5225823150b53c1f1c75ed68"
     },
     {
       "path": "css/api-admin.css",
@@ -63,11 +63,11 @@
     },
     {
       "path": "js/orcamento.js",
-      "sha256": "c353153e63b849d23f17f2742ddee3617ebaaad65174887d3d34c635f5fe7716"
+      "sha256": "70cc5e59f4d34d14a86fb20dbec2854cb76ff37d41f42675bc4d6b3aa784fb7d"
     },
     {
       "path": "js/whatsapp.js",
-      "sha256": "eb23d4303e4be9b2694dd9083d09743fb8ae3616128cbeceb4bfb2412d94a40f"
+      "sha256": "fc2358c9709ef55fa375c08f329ad8d9a702f9ad253e229567331aca0bf55781"
     },
     {
       "path": "js/backup.js",
@@ -122,5 +122,5 @@
       "sha256": "1200098738d0f1a77f23eaa462ad8529767f02d93bbf0e5262cf71ee65affcae"
     }
   ],
-  "updatedAt": "2026-08-20T13:20:19.109Z"
+  "updatedAt": "2026-09-04T00:05:43.067Z"
 }
