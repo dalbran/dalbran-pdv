@@ -348,26 +348,7 @@ function getPdvQuickQuantityModal() {
     }
     atualizarPdvFragTotal(modal);
   };
-  // Grade multi-fragrâncias: steppers + digitação direta (delegação).
-  modal.querySelector('.pdv-fragrance-options').onclick = event => {
-    const btn = event.target.closest('[data-frag-inc],[data-frag-dec]');
-    if (!btn) return;
-    const row = event.target.closest('[data-frag-name]');
-    const input = row ? row.querySelector('[data-frag-input]') : null;
-    if (!input) return;
-    const delta = btn.hasAttribute('data-frag-inc') ? 1 : -1;
-    input.value = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
-    pdvQuickSelection.fragrances[row.dataset.fragName] = Number(input.value) || 0;
-    atualizarPdvFragTotal(modal);
-  };
-  modal.querySelector('.pdv-fragrance-options').oninput = event => {
-    const input = event.target.closest('[data-frag-input]');
-    if (!input) return;
-    const row = event.target.closest('[data-frag-name]');
-    input.value = String(Math.max(0, parseInt(input.value, 10) || 0));
-    pdvQuickSelection.fragrances[row.dataset.fragName] = Number(input.value) || 0;
-    atualizarPdvFragTotal(modal);
-  };
+  // Grade multi-fragrâncias: eventos ligados em renderPdvFragGrid (ligarEventosGrade).
   modal.querySelectorAll('[data-pdv-quantity]').forEach(button => button.onclick = () => {
     const input = modal.querySelector('#pdv-quick-quantity-input');
     input.value = Math.max(1, (parseInt(input.value, 10) || 1) + Number(button.dataset.pdvQuantity));
@@ -396,26 +377,78 @@ function getPdvQuickQuantityModal() {
   return modal;
 }
 
-// Desenha a grade multi-fragrâncias com steppers. `preset` = { nome: qtd } (edição).
-function renderPdvFragGrid(modal, fragrancias, preset) {
-  const fragContainer = modal.querySelector('.pdv-fragrance-options');
-  pdvQuickSelection.fragrances = {};
-  fragContainer.innerHTML = `<div class="pdv-frag-total">Total: <b>0</b> un.</div>` + (fragrancias || []).map(f => {
+// Núcleo reutilizável da grade multi-fragrâncias (modal rápido + formulário).
+// `map` é o objeto { nome: qtd } que guarda o estado da grade.
+function gradeFragHTML(fragrancias, preset) {
+  return `<div class="pdv-frag-total">Total: <b>0</b> un.</div>` + (fragrancias || []).map(f => {
     const name = String(f);
     const qtd = Math.max(0, parseInt(preset && preset[name], 10) || 0);
-    pdvQuickSelection.fragrances[name] = qtd;
     return `<div class="pdv-frag-row" data-frag-name="${escapeProductHtml(name)}">`
       + `<span class="pdv-frag-name">${escapeProductHtml(name)}</span>`
       + `<div class="pdv-frag-stepper"><button type="button" data-frag-dec aria-label="Diminuir">−</button>`
       + `<input data-frag-input type="text" inputmode="numeric" pattern="[0-9]*" value="${qtd}" autocomplete="off">`
       + `<button type="button" data-frag-inc aria-label="Aumentar">+</button></div></div>`;
   }).join('');
+}
+
+function preencherMapaFrag(map, fragrancias, preset) {
+  Object.keys(map).forEach(k => delete map[k]);
+  (fragrancias || []).forEach(f => {
+    const name = String(f);
+    map[name] = Math.max(0, parseInt(preset && preset[name], 10) || 0);
+  });
+}
+
+function totalMapaFrag(map) {
+  return Object.values(map || {}).reduce((acc, q) => acc + (Number(q) || 0), 0);
+}
+
+function atualizarTotalGrade(container, map) {
+  const total = totalMapaFrag(map);
+  const el = container ? container.querySelector('.pdv-frag-total b') : null;
+  if (el) el.textContent = total;
+  return total;
+}
+
+// Liga (de forma idempotente) os steppers + digitação da grade.
+function ligarEventosGrade(container, map, aoMudar) {
+  if (!container) return;
+  container.onclick = event => {
+    const btn = event.target.closest('[data-frag-inc],[data-frag-dec]');
+    if (!btn) return;
+    const row = event.target.closest('[data-frag-name]');
+    const input = row ? row.querySelector('[data-frag-input]') : null;
+    if (!input || !row) return;
+    const delta = btn.hasAttribute('data-frag-inc') ? 1 : -1;
+    input.value = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
+    map[row.dataset.fragName] = Number(input.value) || 0;
+    atualizarTotalGrade(container, map);
+    if (typeof aoMudar === 'function') aoMudar();
+  };
+  container.oninput = event => {
+    const input = event.target.closest('[data-frag-input]');
+    if (!input) return;
+    const row = event.target.closest('[data-frag-name]');
+    if (!row) return;
+    input.value = String(Math.max(0, parseInt(input.value, 10) || 0));
+    map[row.dataset.fragName] = Number(input.value) || 0;
+    atualizarTotalGrade(container, map);
+    if (typeof aoMudar === 'function') aoMudar();
+  };
+}
+
+// Desenha a grade multi-fragrâncias com steppers. `preset` = { nome: qtd } (edição).
+function renderPdvFragGrid(modal, fragrancias, preset) {
+  const fragContainer = modal.querySelector('.pdv-fragrance-options');
+  ligarEventosGrade(fragContainer, pdvQuickSelection.fragrances, () => atualizarPdvFragTotal(modal));
+  preencherMapaFrag(pdvQuickSelection.fragrances, fragrancias, preset);
+  fragContainer.innerHTML = gradeFragHTML(fragrancias, preset);
   fragContainer.classList.remove('hidden');
   atualizarPdvFragTotal(modal);
 }
 
 function totalPdvFragMap() {
-  return Object.values(pdvQuickSelection.fragrances || {}).reduce((acc, q) => acc + (Number(q) || 0), 0);
+  return totalMapaFrag(pdvQuickSelection.fragrances);
 }
 
 function atualizarPdvFragTotal(modal) {
@@ -426,7 +459,30 @@ function atualizarPdvFragTotal(modal) {
   if (btn) btn.textContent = pdvQuickSelection.editingIndex >= 0 ? 'Salvar alterações' : (total > 0 ? `Adicionar (${total} un.)` : 'Adicionar ao carrinho');
 }
 
-// Cria (ou atualiza, em edição) o item agrupado a partir da grade.
+// Grade multi-fragrâncias no formulário (Produto → Volume → grade).
+let formFragMap = {};
+
+function formFragGridEl() { return document.getElementById('orc-frag-grid'); }
+function formFragVisivel() { const g = formFragGridEl(); return !!(g && !g.classList.contains('hidden')); }
+function totalFormFrag() { return totalMapaFrag(formFragMap); }
+
+function esconderFormFragGrid() {
+  const g = formFragGridEl();
+  if (g) g.classList.add('hidden');
+  formFragMap = {};
+}
+
+function mostrarFormFragGrid(fragrancias) {
+  const g = formFragGridEl();
+  if (!g) return;
+  ligarEventosGrade(g, formFragMap, null);
+  preencherMapaFrag(formFragMap, fragrancias, null);
+  g.innerHTML = gradeFragHTML(fragrancias, null);
+  g.classList.remove('hidden');
+  atualizarTotalGrade(g, formFragMap);
+}
+
+// Cria (ou atualiza, em edição) o item agrupado a partir da grade do modal.
 function confirmarItemAgrupadoDoModal(modal) {
   const product = (window.productsCache || []).find(p => p.id === pdvQuickSelection.productId);
   const variacao = product?.variacoes?.[pdvQuickSelection.variationIndex];
@@ -437,7 +493,7 @@ function confirmarItemAgrupadoDoModal(modal) {
     .map(([nome, qtd]) => ({ nome, qtd: Number(qtd) || 0 }))
     .filter(v => v.qtd > 0);
   if (!frags.length) return;
-  const item = {
+  finalizarItemAgrupado({
     produtoId: product.id,
     nome: product.nome || product.name || 'Produto sem nome',
     volume: variacao.volume,
@@ -445,10 +501,15 @@ function confirmarItemAgrupadoDoModal(modal) {
     quantidade: 0,
     subtotal: 0,
     fragrancias: frags
-  };
+  }, pdvQuickSelection.editingIndex);
+}
+
+// Persiste o item agrupado: mescla no carrinho, recalcula e atualiza a tela.
+function finalizarItemAgrupado(item, editando) {
+  const emEdicao = Number.isInteger(editando) && editando >= 0 && !!cart[editando];
   recalcularItemAgrupado(item);
-  if (pdvQuickSelection.editingIndex >= 0 && cart[pdvQuickSelection.editingIndex]) {
-    cart[pdvQuickSelection.editingIndex] = item;
+  if (emEdicao) {
+    cart[editando] = item;
   } else {
     mesclarItemNoCarrinho(cart, item);
   }
@@ -456,7 +517,7 @@ function confirmarItemAgrupadoDoModal(modal) {
   renderCartTable();
   markQuoteDirty();
   updateTotals();
-  showToast(pdvQuickSelection.editingIndex >= 0 ? 'Item atualizado!' : 'Item adicionado!', 'info');
+  showToast(emEdicao ? 'Item atualizado!' : 'Item adicionado!', 'info');
 }
 
 function openPdvQuickQuantityModal(productId, editIndex) {
@@ -772,6 +833,7 @@ function renderMobileOrcamentoView(viewId = 'view-orcamento', mode = 'orcamento'
             </select>
           </div>
         </div>
+        <div id="orc-frag-grid" class="pdv-fragrance-options hidden" style="margin-bottom:.75rem;"></div>
 
         <div class="form-row">
           <div class="form-group" style="flex:1;">
@@ -1113,6 +1175,7 @@ function renderDesktopOrcamentoView(viewId = 'view-orcamento', mode = 'orcamento
               <label>Fragrância / Opção</label>
               <select id="orc-select-fragrancia" disabled><option value="">-- Nenhuma / Padrão --</option></select>
             </div>
+            <div id="orc-frag-grid" class="pdv-fragrance-options hidden" style="grid-column:1 / -1;"></div>
             <div class="field field-tab">
               <label>Tabela de Preço</label>
               <select id="orc-select-tabela">
@@ -2251,6 +2314,7 @@ function bindOrcamentoEvents() {
         selectFrag.innerHTML = '<option value="">-- Nenhuma / Padrão --</option>';
         selectFrag.disabled = true;
       }
+      esconderFormFragGrid();
 
       if (product && Array.isArray(product.variacoes) && product.variacoes.length > 0) {
         if (selectVar) {
@@ -2292,9 +2356,14 @@ function bindOrcamentoEvents() {
               selectFrag.appendChild(opt);
             });
             selectFrag.value = v.fragrancias[0];
+            // Grade multi-fragrâncias no formulário (seleção rápida com quantidades).
+            mostrarFormFragGrid(v.fragrancias);
           } else {
             selectFrag.disabled = true;
+            esconderFormFragGrid();
           }
+        } else {
+          esconderFormFragGrid();
         }
       }
     };
@@ -2335,6 +2404,24 @@ function bindOrcamentoEvents() {
       }
 
       const variacao = product.variacoes[vIndex];
+
+      // Grade multi-fragrâncias do formulário: adiciona tudo de uma vez em item único.
+      if (formFragVisivel() && totalFormFrag() > 0) {
+        const frags = Object.entries(formFragMap)
+          .map(([nome, qtd]) => ({ nome, qtd: Number(qtd) || 0 }))
+          .filter(v => v.qtd > 0);
+        finalizarItemAgrupado({
+          produtoId: product.id,
+          nome: product.nome || product.name || 'Produto sem nome',
+          volume: variacao.volume,
+          precoUnitario: precoUnit,
+          quantidade: 0,
+          subtotal: 0,
+          fragrancias: frags
+        }, -1);
+        esconderFormFragGrid();
+        return;
+      }
 
       // Agrupa automaticamente por produto+volume+preço (mesma configuração
       // soma na mesma linha, inclusive somando o detalhamento de variantes).

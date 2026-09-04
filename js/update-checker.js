@@ -602,7 +602,11 @@
       } catch (e) {}
       try { window.location.reload(); } catch (e) {}
     };
-    setTimeout(doRestart, 900);
+    // Reinicia DENTRO da WebView primeiro (a navegação passa pelo SW ativo e
+    // carrega a nova versão sem matar o app). Se a página não descarregar, o
+    // fallback nativo assume após o timeout.
+    try { setTimeout(doRestart, 4000); } catch (e) {}
+    try { window.location.reload(); } catch (e2) { doRestart(); }
   }
 
   // ---------------------------------------------------------------
@@ -1199,6 +1203,13 @@
       if (log && wrap) {
         log.textContent = text;
         wrap.classList.remove('hidden');
+        // Garante visibilidade mesmo com o acordeão recolhido: abre a seção
+        // "Atualizações do Aplicativo" e rola até o diagnóstico.
+        try {
+          const block = wrap.closest('.settings-block');
+          if (block) block.classList.add('open');
+          setTimeout(() => { try { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e2) {} }, 60);
+        } catch (e2) {}
         return;
       }
       notify('Abra Configurações → Atualizações para ver o diagnóstico.', 'info');

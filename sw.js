@@ -197,10 +197,13 @@ self.addEventListener('fetch', (event) => {
     const cached = await mainCache.match(new Request(normalized));
     if (cached) return cached;
 
-    // 3. Rede — e atualiza o cache principal (apenas conteúdo básico mesmo-origem)
+    // 3. Rede — e atualiza o cache principal (apenas conteúdo básico mesmo-origem).
+    // Quando há um cache de atualização ATIVO, o principal fica congelado na
+    // versão embutida: ele é o alvo do rollback e não pode ser contaminado
+    // com arquivos novos (evita página "mista" após reversão).
     try {
       const res = await fetch(event.request);
-      if (res && res.status === 200 && res.type === 'basic' && !normalized.includes('versao.json')) {
+      if (res && res.status === 200 && res.type === 'basic' && !normalized.includes('versao.json') && !activeUpdateCache) {
         mainCache.put(new Request(normalized), res.clone()).catch(() => {});
       }
       return res;
