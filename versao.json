@@ -4,15 +4,15 @@
   "code": 109,
   "webVersion": "1.0.9",
   "webCode": 109,
-  "nativeVersion": "0.0.16",
-  "nativeCode": 16,
+  "nativeVersion": "0.0.17",
+  "nativeCode": 17,
   "force": false,
   "apk": {
-    "name": "0.0.16",
-    "code": 16,
+    "name": "0.0.17",
+    "code": 17,
     "url": "https://dalbran.github.io/dalbran-pdv/apk/Dalbran-v{VERSION}.apk",
     "fallbackUrl": "https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk",
-    "sha256": "446dedf507ce12c515dc6b31d17c7e393cde2a00366f7a978a51f072df301988",
+    "sha256": "166eb3f61430833056d862868ee4e3efc20e4ea501bd26f38b5dbbdde8b2f978",
     "required": false,
     "reason": ""
   },
@@ -59,7 +59,7 @@
     },
     {
       "path": "js/configuracoes.js",
-      "sha256": "04e3f4ae435a03b243863f56e8d3aaf776d7e8823c65b91637d226e8fcf69361"
+      "sha256": "cfdf6e3d97c8465300d8bb9307c20da20b4784250bac8105f5564b1fc450bef9"
     },
     {
       "path": "js/orcamento.js",
@@ -87,7 +87,7 @@
     },
     {
       "path": "js/update-checker.js",
-      "sha256": "8b98b894b2d08277f67cd8d670e0949943014198b8a2f5c35df29f1a4d025fdf"
+      "sha256": "f030bc511a37f6e86a620faa9aafda5838b073a0fdbf110627cf8fdaa8881fb0"
     },
     {
       "path": "js/api-admin.js",
@@ -122,5 +122,5 @@
       "sha256": "1200098738d0f1a77f23eaa462ad8529767f02d93bbf0e5262cf71ee65affcae"
     }
   ],
-  "updatedAt": "2026-09-05T01:39:06.325Z"
+  "updatedAt": "2026-09-05T02:33:53.324Z"
 }
