@@ -46,8 +46,8 @@
 
   // Versão NATIVA instalada — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.18',
-    code: 18
+    name: '0.0.19',
+    code: 19
   };
   window.__APP_VERSION__ = APP_VERSION.name;
   window.__APP_CODE__ = APP_VERSION.code;
@@ -266,11 +266,24 @@
   }
 
   async function postToSW(message) {
+    // Broadcast para todos os workers conhecidos (ativo + espera + instalação +
+    // controlador): garante que o worker que serve os fetches receba o estado,
+    // mesmo durante transições de atualização do próprio SW.
+    let sent = false;
     try {
       const reg = await navigator.serviceWorker.getRegistration();
-      const target = (reg && (reg.active || reg.waiting || reg.installing)) || navigator.serviceWorker.controller;
-      if (target && target.postMessage) target.postMessage(message);
-      return !!target;
+      const targets = [];
+      if (reg) {
+        if (reg.active) targets.push(reg.active);
+        if (reg.waiting && !targets.includes(reg.waiting)) targets.push(reg.waiting);
+        if (reg.installing && !targets.includes(reg.installing)) targets.push(reg.installing);
+      }
+      const ctrl = navigator.serviceWorker.controller;
+      if (ctrl && !targets.includes(ctrl)) targets.push(ctrl);
+      targets.forEach(target => {
+        try { if (target && target.postMessage) { target.postMessage(message); sent = true; } } catch (e) {}
+      });
+      return sent;
     } catch (e) { return false; }
   }
 
@@ -568,27 +581,44 @@
     // 3b. VERIFICAÇÃO PRÉ-COMMIT: confirma que o SW passa a servir a nova
     // versão ANTES de registrar o estado e reiniciar. Sem isso, um SW que não
     // controla a página gera loop infinito (aplica → reverte → oferece de novo).
+    // Repete até 3 vezes (o worker pode estar com leitura memoizada por até 2s).
     setModalStage('activate', 'Verificando ativação...');
-    try {
-      await new Promise(resolve => setTimeout(resolve, 400));
-      const probeRes = await fetch(new URL('index.html', window.location.origin).href, { cache: 'no-store' });
-      if (!probeRes.ok) throw new Error('HTTP ' + probeRes.status);
-      const probeText = await probeRes.text();
-      const probeMatch = probeText.match(/window\.__WEB_CODE__\s*=\s*(\d+)/);
-      const probeCode = probeMatch ? Number(probeMatch[1]) : 0;
-      if (probeCode !== newCode) throw new Error('SW serviu code ' + (probeCode || 'desconhecido') + ', esperado ' + newCode);
-      diag('Verificação: SW servindo a versão ' + newVersion + ' (code ' + newCode + ').', 'success');
-    } catch (e) {
-      diag('ATIVAÇÃO FALHOU NA VERIFICAÇÃO: ' + (e.message || 'erro'), 'error');
+    let probeCode = 0;
+    let probeErr = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise(resolve => setTimeout(resolve, 900));
+        await postToSW({ type: 'SET_ACTIVE', state: control });
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
+      try {
+        const probeRes = await fetch(new URL('index.html', window.location.origin).href, { cache: 'no-store' });
+        if (!probeRes.ok) throw new Error('HTTP ' + probeRes.status);
+        const probeText = await probeRes.text();
+        const probeMatch = probeText.match(/window\.__WEB_CODE__\s*=\s*(\d+)/);
+        probeCode = probeMatch ? Number(probeMatch[1]) : 0;
+        if (probeCode === newCode) break;
+        probeErr = 'SW serviu code ' + (probeCode || 'desconhecido') + ', esperado ' + newCode;
+      } catch (e) {
+        probeCode = 0;
+        probeErr = (e.message || 'erro');
+      }
+    }
+    if (probeCode !== newCode) {
+      const semControle = !(navigator.serviceWorker && navigator.serviceWorker.controller);
+      const detalhe = probeErr + (semControle ? ' (página sem controle do Service Worker)' : '');
+      diag('ATIVAÇÃO FALHOU NA VERIFICAÇÃO: ' + detalhe, 'error');
       diag('Revertendo o controle e descartando o cache ' + cacheName + '. Nada foi alterado.', 'error');
       try {
         await writeControl({ active: prevCache || null, version: '', previous: null });
         await postToSW({ type: 'REVERT_ACTIVE', cacheName: prevCache || null, version: '' });
         await caches.delete(cacheName);
       } catch (e2) {}
-      setModalStatus('Falha ao ativar a versão ' + newVersion + ' (' + (e.message || 'erro') + '). Nada foi alterado — tente "Verificar novamente" ou reinstale o APK.', 'error');
+      setModalStatus('Falha ao ativar a versão ' + newVersion + ' (' + detalhe + '). Nada foi alterado — tente "Verificar novamente" ou reinstale o APK.', 'error');
       return { ok: false, stage: 'ACTIVATION_VERIFY' };
     }
+    diag('Verificação: SW servindo a versão ' + newVersion + ' (code ' + newCode + ').', 'success');
 
     // 4. Registra a versão local.
     state.prevWebCode = parseInt(state.webCode || 0, 10) || installedBaseWebCode();

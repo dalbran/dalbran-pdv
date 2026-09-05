@@ -1,25 +1,25 @@
 {
   "schema": 2,
-  "version": "1.0.12",
-  "code": 112,
-  "webVersion": "1.0.12",
-  "webCode": 112,
-  "nativeVersion": "0.0.18",
-  "nativeCode": 18,
+  "version": "1.0.13",
+  "code": 113,
+  "webVersion": "1.0.13",
+  "webCode": 113,
+  "nativeVersion": "0.0.19",
+  "nativeCode": 19,
   "force": false,
   "apk": {
-    "name": "0.0.18",
-    "code": 18,
+    "name": "0.0.19",
+    "code": 19,
     "url": "https://dalbran.github.io/dalbran-pdv/apk/Dalbran-v{VERSION}.apk",
     "fallbackUrl": "https://github.com/dalbran/dalbran-pdv/releases/download/v{VERSION}/Dalbran-v{VERSION}.apk",
-    "sha256": "6fbb4985201588ae4d09aad1164454fed596ddfacc2136c051992d82fcea76e8",
+    "sha256": "c052d51d1bbf3bda422b0a2305ab1f74e86c45a619ea91088fe1fe76b18d5d66",
     "required": false,
     "reason": ""
   },
   "web": [
     {
       "path": "index.html",
-      "sha256": "343ef7e95247a2aec90f1f677e1fa09d8f9d3dc9fe2cd0793d387ad56a23dd54"
+      "sha256": "6cf4a32e8f5817fa7a00875acc4de04d57362e20164002f87b3f9a2991cbd404"
     },
     {
       "path": "API.html",
@@ -59,7 +59,7 @@
     },
     {
       "path": "js/configuracoes.js",
-      "sha256": "c2e08b52878b244ab5ddc29e2409a9a75edaf422a547b9b9bdbaeb6c3f35fb71"
+      "sha256": "33e01535bd90ab6c3c4d17b3a9ede156b760d403ffd0a926527bd57d6edaf2c4"
     },
     {
       "path": "js/orcamento.js",
@@ -87,7 +87,7 @@
     },
     {
       "path": "js/update-checker.js",
-      "sha256": "cb0822a3786cc718ebd1e96de862f8b571bf62ab4af8f75de5775c1690a23e6a"
+      "sha256": "4862481a46f7a2c657761dd80ba970fa8af30e496ebf9927ea729d5dbd44867e"
     },
     {
       "path": "js/api-admin.js",
@@ -122,5 +122,5 @@
       "sha256": "1200098738d0f1a77f23eaa462ad8529767f02d93bbf0e5262cf71ee65affcae"
     }
   ],
-  "updatedAt": "2026-09-05T21:51:18.769Z"
+  "updatedAt": "2026-09-05T22:24:55.406Z"
 }
