@@ -357,13 +357,40 @@ window.shareSavedDocument = function(saved) {
   `;
 
   // Converte HTML em PNG via canvas para o compartilhamento nativo
+  const linhasCupom = (typeof gerarCupomTermicoTexto === 'function' && typeof docCupomTermico === 'function')
+    ? gerarCupomTermicoTexto(docCupomTermico({
+        tipo: isSale ? 'venda' : 'orcamento',
+        numero: saved.numero || saved.id || '',
+        cliente: saved.cliente?.nome || 'Consumidor Final (Balcão)',
+        vendedor: saved.vendedor?.nome || '',
+        data: dateStr,
+        validade: '',
+        itens: saved.itens,
+        financeiro: totals,
+        mensagem: settings.mensagemPadrao || '',
+        settings
+      }), '80mm').split('\n')
+    : null;
   const canvas = document.createElement('canvas');
-  canvas.width = 340;
-  canvas.height = 480;
+  const LH = 15;
+  const topPad = 24;
+  const botPad = 20;
+  if (linhasCupom) {
+    canvas.width = 360;
+    canvas.height = topPad + linhasCupom.length * LH + botPad;
+  } else {
+    canvas.width = 340;
+    canvas.height = 480;
+  }
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#000000';
+  if (linhasCupom) {
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'left';
+    linhasCupom.forEach((linha, i) => ctx.fillText(linha, 12, topPad + i * LH));
+  } else {
   ctx.font = 'bold 15px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA', 170, 30);
@@ -382,6 +409,7 @@ window.shareSavedDocument = function(saved) {
   ctx.setLineDash([]);
   ctx.font = 'bold 13px monospace';
   ctx.fillText(`TOTAL: ${formatCurrency(totals.totalGeral)}`, 20, 172);
+  }
 
   const fileName = `${isSale ? 'Recibo' : 'Orcamento'}_${saved.numero || 'Documento'}.png`;
   const dataUrl = canvas.toDataURL('image/png');

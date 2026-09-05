@@ -162,6 +162,123 @@ function opcoesVariantePorFormato(format) {
   return { abreviar: false, maxChars: 0 };
 }
 
+// ---------------------------------------------------------------------------
+// Cupom térmico em TEXTO (estilo POS/ECF, largura fixa):
+// sem emojis, sem acentos, colunas QTD|DESCRICAO|VL.UN|TOTAL, fragrâncias com
+// recuo na linha abaixo, separadores tracejados. 58mm=36 col, 80mm=48 col.
+// ---------------------------------------------------------------------------
+function semAcento(texto) {
+  return String(texto == null ? '' : texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function repetirCaractere(car, n) {
+  return new Array(Math.max(0, Number(n) || 0) + 1).join(car);
+}
+
+function padDireitaCupom(s, w) {
+  s = String(s == null ? '' : s);
+  return s.length >= w ? s.slice(0, w) : s + repetirCaractere(' ', w - s.length);
+}
+
+function padEsquerdaCupom(s, w) {
+  s = String(s == null ? '' : s);
+  return s.length >= w ? s.slice(-w) : repetirCaractere(' ', w - s.length) + s;
+}
+
+function moedaCupom(v) {
+  return (Number(v) || 0).toFixed(2).replace('.', ',');
+}
+
+// Quebra por palavras com recuo fixo (nunca corta palavra).
+function quebrarLinhaCupom(texto, largura, recuo) {
+  const base = repetirCaractere(' ', recuo);
+  const palavras = String(texto || '').split(/\s+/).filter(Boolean);
+  if (!palavras.length) return [];
+  const linhas = [];
+  let cur = base;
+  palavras.forEach(p => {
+    const cand = cur.length > base.length ? cur + ' ' + p : cur + p;
+    if (cand.length > largura && cur.length > base.length) { linhas.push(cur); cur = base + p; }
+    else cur = cand;
+  });
+  linhas.push(cur);
+  return linhas;
+}
+
+// Monta o documento do cupom em texto a partir de venda/orçamento + financeiro.
+function docCupomTermico({ tipo, numero, cliente, vendedor, data, validade, itens, financeiro, mensagem, settings }) {
+  const t = financeiro || {};
+  return {
+    tipo, numero, cliente, vendedor, data, validade, itens: itens || [],
+    subtotal: t.subtotal || 0, desconto: t.desconto || 0,
+    total: t.totalGeral != null ? t.totalGeral : 0,
+    formaPag: t.formaPag || 'PIX', mensagem, settings: settings || {}
+  };
+}
+
+// Gera o cupom em texto puro.
+// doc: { tipo, numero, cliente, vendedor, data, validade, itens,
+//        subtotal, desconto, total, formaPag, mensagem, settings }
+function gerarCupomTermicoTexto(doc, formato) {
+  const W = formato === '80mm' ? 48 : 36;
+  const dash = repetirCaractere('-', W);
+  const DESC_W = W - 19; // 5 (QTD) + 7 (VL.UN) + 7 (TOTAL)
+  const L = [];
+  const sett = (doc && doc.settings) || {};
+  const d = doc || {};
+  L.push(semAcento(sett.nomeFantasia || 'DALBRAN DISTRIBUIDORA'));
+  L.push(`${d.tipo === 'venda' ? 'VENDA' : 'ORCAMENTO'} Nº ${semAcento(d.numero || '')}`);
+  L.push(dash);
+  if (d.cliente) L.push(`Cliente: ${semAcento(d.cliente)}`);
+  if (d.vendedor) L.push(`Vendedor: ${semAcento(d.vendedor)}`);
+  if (d.data) L.push(`Data: ${semAcento(d.data)}`);
+  if (d.validade) L.push(`Validade: ${semAcento(d.validade)}`);
+  L.push(dash);
+  L.push(padDireitaCupom('QTD  DESCRICAO', 5 + DESC_W) + padEsquerdaCupom('VL.UN', 7) + padEsquerdaCupom('TOTAL', 7));
+  L.push(dash);
+  (d.itens || []).forEach(item => {
+    const qtd = Number(item.quantidade) || 0;
+    const desc = semAcento(`${item.nome || 'Item'} ${item.volume || ''}`.trim());
+    L.push(
+      padDireitaCupom(`${qtd}x`, 5) +
+      padDireitaCupom(desc, DESC_W) +
+      padEsquerdaCupom(moedaCupom(item.precoUnitario), 7) +
+      padEsquerdaCupom(moedaCupom(item.subtotal != null ? item.subtotal : (item.precoUnitario || 0) * qtd), 7)
+    );
+    const partes = variantesDoItem(item)
+      .filter(v => (Number(v.qtd) || 0) > 0)
+      .map(v => `${v.qtd} ${semAcento(v.nome)}`);
+    if (!partes.length && item.fragrancia && item.fragrancia !== 'Padrão') partes.push(semAcento(item.fragrancia));
+    if (partes.length) {
+      // Agrupa em "a / b" respeitando a largura (linhas seguintes com recuo).
+      const linhasFrag = [];
+      let cur = '';
+      partes.forEach(p => {
+        const cand = cur ? cur + ' / ' + p : p;
+        if (cur && (5 + cand.length) > W) { linhasFrag.push(cur); cur = p; }
+        else cur = cand;
+      });
+      if (cur) linhasFrag.push(cur);
+      linhasFrag.forEach(linha => L.push(repetirCaractere(' ', 5) + linha));
+    }
+    L.push('');
+  });
+  const linhaTotal = (rotulo, valor) => {
+    const val = `R$ ${moedaCupom(valor)}`;
+    return rotulo + repetirCaractere(' ', Math.max(1, W - rotulo.length - val.length)) + val;
+  };
+  L.push(linhaTotal('Subtotal:', d.subtotal || 0));
+  L.push(linhaTotal('Desconto:', d.desconto || 0));
+  L.push(linhaTotal('TOTAL:', d.total != null ? d.total : 0));
+  L.push('');
+  L.push(`FORMA DE PAGAMENTO: ${semAcento(String(d.formaPag || 'PIX').toUpperCase())}`);
+  L.push(dash);
+  quebrarLinhaCupom(`Validade: 24h. Sujeito a alteracao de estoque sem aviso previo.`, W, 0).forEach(l => L.push(l));
+  L.push('');
+  quebrarLinhaCupom(semAcento(d.mensagem || sett.mensagemPadrao || 'Agradecemos a preferencia!'), W, 0).forEach(l => L.push(l));
+  return L.join('\n');
+}
+
 function recalcularItemAgrupado(item) {
   const vars = variantesDoItem(item);
   if (!vars.length) return item;
@@ -1986,58 +2103,20 @@ function openThermalReceiptModal(sale) {
   const dateStr = sale.createdAt?.toDate ? formatDateTime(sale.createdAt.toDate()) : formatDateTime(new Date());
   const paymentStr = (sale.financeiro?.formaPag || 'PIX').toUpperCase();
 
-  let itemsHtml = (sale.itens || []).map(i => `
-    <tr>
-      <td style="width:50%;">${escapeProductHtml(i.nome)} (${escapeProductHtml(i.volume || '')})<br><small class="thermal-unit">${escapeProductHtml(linhaUnidadeItem(i))}</small>${fragmentoVarianteImpressao(i, { maxChars: 42, classe: 'thermal-variant' })}</td>
-      <td style="width:15%; text-align:center;">${i.quantidade}</td>
-      <td style="width:35%; text-align:right;">${formatCurrency(i.subtotal || (i.precoUnitario * i.quantidade))}</td>
-    </tr>
-  `).join('');
+  let itemsHtml = `<pre class="cupom-termico-texto">${escapeProductHtml(gerarCupomTermicoTexto(docCupomTermico({
+    tipo: 'venda',
+    numero: sale.numero || sale.id || '',
+    cliente: sale.cliente?.nome || 'Consumidor Final (Balcão)',
+    vendedor: sale.vendedor?.nome || '',
+    data: dateStr,
+    validade: '',
+    itens: sale.itens,
+    financeiro: sale.financeiro,
+    mensagem: settings.mensagemPadrao || '',
+    settings
+  }), '80mm'))}</pre>`;
 
-  content.innerHTML = `
-    <div class="thermal-center">
-      <div class="thermal-title">${escapeProductHtml(settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA')}</div>
-      <div class="thermal-subtitle">CNPJ: ${escapeProductHtml(settings.cnpj || '12.345.678/0001-90')}<br>${escapeProductHtml(settings.endereco || 'Distribuidora Mobile')}</div>
-      <div class="thermal-double-divider"></div>
-      <div class="thermal-bold">COMPROVANTE DE VENDA DE CAIXA</div>
-      <div>CÓDIGO: ${escapeProductHtml(sale.numero || sale.id)}</div>
-      <div>DATA: ${dateStr}</div>
-    </div>
-    <div class="thermal-divider"></div>
-    <div>CLIENTE: ${escapeProductHtml(sale.cliente?.nome || 'Consumidor Final (Balcão)')}</div>
-    <div>PAGAMENTO: ${paymentStr}</div>
-    <div class="thermal-divider"></div>
-    <table class="thermal-table">
-      <thead>
-        <tr>
-          <th>ITEM</th>
-          <th style="text-align:center;">QTD</th>
-          <th style="text-align:right;">TOTAL</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsHtml}
-      </tbody>
-    </table>
-    <div class="thermal-divider"></div>
-    <div class="thermal-flex">
-      <span>SUBTOTAL:</span>
-      <span>${formatCurrency(sale.financeiro?.subtotal)}</span>
-    </div>
-    ${(sale.financeiro?.desconto > 0) ? `
-    <div class="thermal-flex">
-      <span>DESCONTO:</span>
-      <span>- ${formatCurrency(sale.financeiro?.desconto)}</span>
-    </div>` : ''}
-    <div class="thermal-flex thermal-bold" style="font-size:12px; margin-top:4px;">
-      <span>TOTAL PAGO:</span>
-      <span>${formatCurrency(sale.financeiro?.totalGeral)}</span>
-    </div>
-    <div class="thermal-double-divider"></div>
-    <div class="thermal-center thermal-subtitle" style="margin-top:10px;">
-      ${escapeProductHtml(settings.mensagemPadrao || 'Obrigado pela preferência! Volte Sempre.')}
-    </div>
-  `;
+  content.innerHTML = itemsHtml;
 
   modal.classList.remove('hidden');
   modal.classList.add('active');
@@ -2784,6 +2863,28 @@ async function printQuote(printType) {
   printArea.style.fontSize = `${settings.tamanhoFonteCupom || (isThermal ? 11 : 12)}px`;
   printArea.style.display = 'block';
 
+  // Térmico: cupom em texto puro (estilo POS, largura fixa).
+  if (isThermal) {
+    const textoCupom = gerarCupomTermicoTexto(docCupomTermico({
+      tipo: documentMode === 'pdv' ? 'venda' : 'orcamento',
+      numero: getQuoteNumber(documentMode === 'pdv' ? 'VEN' : 'ORC'),
+      cliente: clienteNome,
+      vendedor: vendedor?.nome || 'dalbran (master)',
+      data: formatDateTime(new Date()),
+      validade: document.getElementById('orc-prazo-entrega')?.value.trim() || '',
+      itens: cart,
+      financeiro: totals,
+      mensagem: document.getElementById('orc-observacao')?.value.trim() || settings.mensagemPadrao || '',
+      settings
+    }), printType);
+    printArea.innerHTML = `<pre class="cupom-termico-texto">${escapeProductHtml(textoCupom)}</pre>
+    <footer class="print-footer">
+      ${settings.exibirAvisoNoCupom !== false && settings.avisoEstoque ? `${escapeProductHtml(settings.avisoEstoque)}<br>` : ''}
+    </footer>`;
+    runNativePrint(printArea);
+    return;
+  }
+
   printArea.innerHTML = `
     <header class="print-header">
       ${(settings.logoCupomUrl || settings.logoUrl) ? `<img class="print-logo" src="${settings.logoCupomUrl || settings.logoUrl}" alt="Logo">` : ''}
@@ -2947,7 +3048,25 @@ async function runNativePrint(printArea) {
       printArea.style.display = 'none';
     } catch (e) {
       console.warn('Capacitor Printer failed, calling window.print fallback:', e);
-      printArea.style.display = 'block';
+  printArea.style.display = 'block';
+  // Térmico: cupom em texto puro (estilo POS, largura fixa).
+  if (isThermal) {
+    const textoCupomSalvo = gerarCupomTermicoTexto(docCupomTermico({
+      tipo: 'orcamento',
+      numero: saved.numero || saved.id || '',
+      cliente: saved.cliente?.nome || 'Consumidor Balcão',
+      vendedor: saved.vendedor?.nome || 'dalbran (master)',
+      data: saved.createdAt?.toDate ? formatDateTime(saved.createdAt.toDate()) : formatDateTime(new Date()),
+      validade: '',
+      itens: saved.itens,
+      financeiro: totals,
+      mensagem: saved.entrega?.observacao || settings.mensagemPadrao || '',
+      settings
+    }), format);
+    printArea.innerHTML = `<pre class="cupom-termico-texto">${escapeProductHtml(textoCupomSalvo)}</pre>`;
+    runNativePrint(printArea);
+    return;
+  }
       window.print();
       setTimeout(() => { printArea.style.display = 'none'; }, 10000);
     }
@@ -2976,18 +3095,20 @@ function printThermalReceipt(sale, format) {
   printArea.className = `print-document print-${isThermal ? cupom : '80mm'}`;
   printArea.style.fontFamily = "'Courier New', Courier, monospace";
   printArea.style.fontSize = `${settings.tamanhoFonteCupom || 11}px`;
+  const textoCupomVenda = gerarCupomTermicoTexto(docCupomTermico({
+    tipo: 'venda',
+    numero: sale.numero || sale.id || '',
+    cliente: sale.cliente?.nome || 'Consumidor Final',
+    vendedor: sale.vendedor?.nome || '',
+    data: formatDateTime(sale.createdAt?.toDate ? sale.createdAt.toDate() : new Date()),
+    validade: '',
+    itens: sale.itens,
+    financeiro: totals,
+    mensagem: settings.mensagemPadrao || '',
+    settings
+  }), isThermal ? cupom : '80mm');
   printArea.innerHTML = `
-    <header class="print-header">
-      ${(settings.logoCupomUrl || settings.logoUrl) ? `<img class="print-logo" src="${settings.logoCupomUrl || settings.logoUrl}" alt="Logo">` : ''}
-      <h1>${escapeProductHtml(settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA')}</h1>
-      <p>CNPJ: ${escapeProductHtml(settings.cnpj || '')}</p>
-      <p>${escapeProductHtml(settings.endereco || '')}</p>
-    </header>
-    <div class="print-title">COMPROVANTE DE VENDA Nº ${escapeProductHtml(sale.numero || sale.id || '')}</div>
-    <div class="print-meta"><span>Data: ${formatDateTime(sale.createdAt?.toDate ? sale.createdAt.toDate() : new Date())}</span><span>Cliente: ${escapeProductHtml(sale.cliente?.nome || 'Consumidor Final')}</span><span>Pagamento: ${escapeProductHtml(String(totals.formaPag || 'PIX').toUpperCase())}</span></div>
-    <table class="print-items"><thead><tr><th>Qtd</th><th>Item</th><th>Total</th></tr></thead><tbody>${sale.itens.map(item => `<tr><td>${item.quantidade}x</td><td>${escapeProductHtml(item.nome)} ${escapeProductHtml(item.volume || '')}<br><small>${escapeProductHtml(linhaUnidadeItem(item))}</small>${fragmentoVarianteImpressao(item, opcoesVariantePorFormato(isThermal ? cupom : '80mm'))}</td><td>${formatCurrency(item.subtotal || (item.precoUnitario * item.quantidade))}</td></tr>`).join('')}</tbody></table>
-    <section class="print-totals"><p><span>Subtotal</span><span>${formatCurrency(totals.subtotal || 0)}</span></p><p><span>Desconto</span><span>- ${formatCurrency(totals.desconto || 0)}</span></p><p class="print-total"><span>TOTAL</span><span>${formatCurrency(totals.totalGeral || 0)}</span></p></section>
-    <footer class="print-footer"><strong>${escapeProductHtml(settings.mensagemPadrao || 'Obrigado pela preferência!')}</strong></footer>`;
+    <pre class="cupom-termico-texto">${escapeProductHtml(textoCupomVenda)}</pre>`;
   runNativePrint(printArea);
 }
 
