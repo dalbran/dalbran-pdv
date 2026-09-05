@@ -55,8 +55,8 @@ const APK_CODE = 17;
 // Versão WEB/MODULAR — controla tudo que pode ser atualizado sem novo APK
 // (HTML, CSS, JS, telas, módulos, imagens, traduções, configurações remotas).
 // Aumenta em TODA publicação web, mesmo quando o APK não muda.
-const WEB_VERSION = '1.0.9';
-const WEB_CODE = 109;
+const WEB_VERSION = '1.0.10';
+const WEB_CODE = 110;
 
 // Quando true, a atualização nativa (APK) é OBRIGATÓRIA para esta versão —
 // usado apenas quando a mudança não pode ser entregue pela camada web.

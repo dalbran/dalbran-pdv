@@ -51,20 +51,17 @@ function resumoVarianteHtml(item) {
 // ---------------------------------------------------------------------------
 const WA_DIV = '───────────────';
 
-// Converte para Unicode Sans-Serif LEVE (ex.: "1 Maçã" → "𝟣 𝖬𝖺𝖼̧𝖺̃").
-// Diacríticos são preservados via decomposição NFD (a base converte).
-function paraSansSerifUnicode(texto) {
-  const nfd = String(texto == null ? '' : texto).normalize('NFD');
-  let out = '';
-  for (const ch of nfd) {
-    const c = ch.codePointAt(0);
-    let v = null;
-    if (c >= 0x41 && c <= 0x5A) v = 0x1D610 + (c - 0x41);
-    else if (c >= 0x61 && c <= 0x7A) v = 0x1D62A + (c - 0x61);
-    else if (c >= 0x30 && c <= 0x39) v = 0x1D7E2 + (c - 0x30);
-    out += v !== null ? String.fromCodePoint(v) : ch;
-  }
-  return out;
+// Linha das variantes em "letra de máquina": nomes REAIS em maiúsculas,
+// sem negrito, em bloco monoespaçado (```) — o texto original não é alterado.
+function textoVariantesMono(item) {
+  let vars = [];
+  try { if (typeof variantesDoItem === 'function') vars = variantesDoItem(item) || []; } catch (e) {}
+  if (!vars.length && item && item.fragrancia && item.fragrancia !== 'Padrão')
+    vars = [{ nome: item.fragrancia, qtd: item.quantidade || 0 }];
+  const parts = vars
+    .filter(v => (Number(v.qtd) || 0) > 0)
+    .map(v => `${v.qtd} ${String(v.nome || '').toUpperCase()}`);
+  return parts.length ? '```' + parts.join(' · ') + '```' : '';
 }
 
 // Ícone por categoria de produto (🧴 detergentes, 🌸 desinfetantes e
@@ -81,14 +78,6 @@ function iconeCategoriaProduto(nome) {
   return '📦';
 }
 
-// "5 Maçã • 5 Coco" em Sans-Serif Unicode ("" quando sem variantes).
-function textoVariantesSans(item) {
-  let r = '';
-  try { if (typeof resumoVariantes === 'function') r = resumoVariantes(item) || ''; } catch (e) {}
-  if (!r && item && item.fragrancia && item.fragrancia !== 'Padrão') r = `${item.quantidade || ''} ${item.fragrancia}`.trim();
-  return r ? paraSansSerifUnicode(r) : '';
-}
-
 // Bloco de um item no padrão Opção 2 (quantidade × unitário = subtotal + variantes).
 function blocoItemWhatsApp(item) {
   const qtd = Number(item.quantidade) || 0;
@@ -96,7 +85,7 @@ function blocoItemWhatsApp(item) {
   const sub = formatCurrency(item.subtotal || ((item.precoUnitario || 0) * qtd));
   let t = `🔹 *${item.nome} (${item.volume || ''})*\n`;
   t += `▫️ ${qtd}un  x  ${unit}  =  **${sub}**\n`;
-  const vars = textoVariantesSans(item);
+  const vars = textoVariantesMono(item);
   if (vars) t += `   └ ${iconeCategoriaProduto(item.nome)} ${vars}\n`;
   return t + '\n';
 }
