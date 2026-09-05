@@ -2210,6 +2210,9 @@ body.theme-dark .quick-action-icon {
 /* Recibo térmico: unidade em destaque normal, variantes em fonte menor */
 .thermal-unit { font-size:.92em; }
 .thermal-variant { font-size:.82em; color:#333; }
+/* Cupom térmico em texto puro (estilo POS, largura fixa) */
+.cupom-termico-texto { font-family:'Courier New', Courier, monospace; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; margin:0; color:#000; background:#fff; }
+.print-58mm .cupom-termico-texto { font-size:10px; }
 .pdv-volume-option { min-height:64px; padding:10px; border:1.5px solid var(--border-color); border-radius:var(--radius-sm); background:#f8fafc; color:var(--text-main); text-align:left; cursor:pointer; }
 .product-search-result:hover { border-color:var(--primary); background:#eff6ff; }
 .product-search-result small, .product-search-empty { color:var(--text-muted); font-size:.8rem; }
