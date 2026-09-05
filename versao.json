@@ -1,9 +1,9 @@
 {
   "schema": 2,
-  "version": "1.0.6",
-  "code": 106,
-  "webVersion": "1.0.6",
-  "webCode": 106,
+  "version": "1.0.7",
+  "code": 107,
+  "webVersion": "1.0.7",
+  "webCode": 107,
   "nativeVersion": "0.0.16",
   "nativeCode": 16,
   "force": false,
@@ -19,7 +19,7 @@
   "web": [
     {
       "path": "index.html",
-      "sha256": "c1e889b63f2fbcd975049e6330f1fac57a0864296b19a8f6e73880db916dba14"
+      "sha256": "500cc14abc6d73687d70716c6e4c17b750e4b105e4d9ca01e681fb048c99df21"
     },
     {
       "path": "API.html",
@@ -67,7 +67,7 @@
     },
     {
       "path": "js/whatsapp.js",
-      "sha256": "fc2358c9709ef55fa375c08f329ad8d9a702f9ad253e229567331aca0bf55781"
+      "sha256": "18d11fe314cc124b019c7ff66d2b47228a2179db3cc49e1edad42b4bb858cc34"
     },
     {
       "path": "js/backup.js",
@@ -122,5 +122,5 @@
       "sha256": "1200098738d0f1a77f23eaa462ad8529767f02d93bbf0e5262cf71ee65affcae"
     }
   ],
-  "updatedAt": "2026-09-04T09:20:24.247Z"
+  "updatedAt": "2026-09-05T00:50:42.062Z"
 }

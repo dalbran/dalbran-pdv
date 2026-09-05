@@ -46,6 +46,86 @@ function resumoVarianteHtml(item) {
   return '';
 }
 
+// ---------------------------------------------------------------------------
+// Layout Estilo Cupom/Comprovante (Opção 2) para WhatsApp.
+// ---------------------------------------------------------------------------
+const WA_DIV = '───────────────';
+
+// Converte para Unicode Sans-Serif negrito (ex.: "5 Maçã" → "𝟧 𝖬𝖺ç𝖺").
+// Diacríticos são preservados via decomposição NFD (a base converte).
+function paraSansSerifUnicode(texto) {
+  const nfd = String(texto == null ? '' : texto).normalize('NFD');
+  let out = '';
+  for (const ch of nfd) {
+    const c = ch.codePointAt(0);
+    let v = null;
+    if (c >= 0x41 && c <= 0x5A) v = 0x1D5A0 + (c - 0x41);
+    else if (c >= 0x61 && c <= 0x7A) v = 0x1D5BA + (c - 0x61);
+    else if (c >= 0x30 && c <= 0x39) v = 0x1D7EC + (c - 0x30);
+    out += v !== null ? String.fromCodePoint(v) : ch;
+  }
+  return out;
+}
+
+// Ícone por categoria de produto (🧴 Detergente, 🌸 Desinfetante, ...).
+function iconeCategoriaProduto(nome) {
+  const n = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (n.includes('desinfetante')) return '🌸';
+  if (n.includes('detergente')) return '🧴';
+  if (n.includes('amaciante')) return '👕';
+  if (n.includes('cloro') || n.includes('agua sanitaria')) return '🧪';
+  if (n.includes('sabao') || n.includes('sabonete')) return '🧼';
+  if (n.includes('aromatizante') || n.includes('desodoriz')) return '🌺';
+  if (n.includes('multiuso') || n.includes('multilimp') || n.includes('limpador')) return '🧽';
+  return '📦';
+}
+
+// "5 Maçã • 5 Coco" em Sans-Serif Unicode ("" quando sem variantes).
+function textoVariantesSans(item) {
+  let r = '';
+  try { if (typeof resumoVariantes === 'function') r = resumoVariantes(item) || ''; } catch (e) {}
+  if (!r && item && item.fragrancia && item.fragrancia !== 'Padrão') r = `${item.quantidade || ''} ${item.fragrancia}`.trim();
+  return r ? paraSansSerifUnicode(r) : '';
+}
+
+// Bloco de um item no padrão Opção 2 (quantidade × unitário = subtotal + variantes).
+function blocoItemWhatsApp(item) {
+  const qtd = Number(item.quantidade) || 0;
+  const unit = formatCurrency(item.precoUnitario || 0);
+  const sub = formatCurrency(item.subtotal || ((item.precoUnitario || 0) * qtd));
+  let t = `🔹 *${item.nome} (${item.volume || ''})*\n`;
+  t += `▫️ ${qtd}un  x  ${unit}  =  **${sub}**\n`;
+  const vars = textoVariantesSans(item);
+  if (vars) t += `   └ ${iconeCategoriaProduto(item.nome)} ${vars}\n`;
+  return t + '\n';
+}
+
+function validadeWhatsAppHoras(settings) {
+  const dias = Number(settings.prazoValidadeDias) || 1;
+  return `${dias * 24}h`;
+}
+
+function cabecalhoWhatsApp({ tipo, numero, cliente, vendedor, data, settings }) {
+  let t = `🏢 *${settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA'}*\n`;
+  t += `📄 *${tipo} Nº ${numero}*\n`;
+  t += `${WA_DIV}\n`;
+  t += `👤 *Cliente:* ${cliente}\n`;
+  t += `🧑‍💼 *Vendedor:* ${vendedor}\n`;
+  t += `📅 *Data:* ${data}\n`;
+  t += `${WA_DIV}\n\n`;
+  return t;
+}
+
+function rodapeWhatsApp(totals, settings) {
+  let t = `${WA_DIV}\n📊 **RESUMO**\n`;
+  t += `• Subtotal: ${formatCurrency(totals.subtotal || 0)}\n`;
+  t += `• Desconto: ${formatCurrency(totals.desconto || 0)}\n`;
+  t += `💳 **TOTAL: ${formatCurrency(totals.totalGeral || 0)}** (${String(totals.formaPag || 'PIX').toUpperCase()})\n`;
+  t += `${WA_DIV}\n\n`;
+  t += `⚠️ _Validade: ${validadeWhatsAppHoras(settings)}. Sujeito à alteração de estoque._`;
+  return t;
+}
+
 // Resolve a mensagem a usar para um tipo específico (recibo/orçamento/pedido),
 // com fallback para a mensagem padrão configurada.
 function resolveMessageFor(kind) {
@@ -81,37 +161,21 @@ async function sendOrcamentoWhatsApp() {
   const totals = calculateTotals();
 
   const dataHoje = formatDateTime(new Date());
-  const dataValidade = formatDateTime(addDaysToDate(new Date(), settings.prazoValidadeDias || 1));
 
-  // Constrói Mensagem Formatada
-  let text = `*${settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA'}*\n`;
+  // Layout Estilo Cupom/Comprovante (Opção 2).
   const isSale = typeof documentMode !== 'undefined' && documentMode === 'pdv';
-  text += `*${isSale ? 'VENDA' : 'ORÇAMENTO'} Nº ${typeof getQuoteNumber === 'function' ? getQuoteNumber(isSale ? 'VEN' : 'ORC') : 'RASCUNHO'}*\n`;
-  text += `${dataHoje.replace(' ', ' - ')}\n\n`;
-  text += `👤 *Cliente:* ${clienteNome}\n`;
-  text += `🧑‍💼 *Vendedor:* ${vendedor?.nome || settings.nomeFantasia || 'Não informado'}\n`;
-  text += `📅 *Data:* ${dataHoje}\n`;
-  text += `⏳ *Validade:* ${dataValidade}\n`;
-  text += `-----------------------------------\n`;
-  text += `📦 *ITENS ${isSale ? 'DA VENDA' : 'DO ORÇAMENTO'}:*\n\n`;
-
-  cart.forEach((item, index) => {
-    text += `${index + 1}. ${item.quantidade}x *${item.nome}* (${item.volume}) — *${formatCurrency(item.subtotal)}*\n`;
-    text += resumoVarianteWhatsApp(item);
+  let text = cabecalhoWhatsApp({
+    tipo: isSale ? 'VENDA' : 'ORÇAMENTO',
+    numero: typeof getQuoteNumber === 'function' ? getQuoteNumber(isSale ? 'VEN' : 'ORC') : 'RASCUNHO',
+    cliente: clienteNome,
+    vendedor: vendedor?.nome || settings.nomeFantasia || 'Não informado',
+    data: dataHoje,
+    settings
   });
 
-  text += `-----------------------------------\n`;
-  text += `💵 Subtotal: ${formatCurrency(totals.subtotal)}\n`;
-  text += `🏷️ Desconto: -${formatCurrency(totals.desconto)}\n`;
-  text += `💳 Taxa: +${formatCurrency(totals.valorTaxa)}\n`;
-  text += `💰 *TOTAL GERAL: ${formatCurrency(totals.totalGeral)}*\n`;
-  text += `💳 Forma de Pagamento: ${totals.formaPag.toUpperCase()}\n\n`;
+  cart.forEach((item) => { text += blocoItemWhatsApp(item); });
 
-  if (settings.avisoEstoque) {
-    text += `⚠️ _${settings.avisoEstoque}_\n\n`;
-  }
-
-  text += `${isSale ? resolveMessageFor('Recibo') : resolveMessageFor('Orcamento')}`;
+  text += rodapeWhatsApp(totals, settings);
 
   const encodedText = encodeURIComponent(text);
 
@@ -138,28 +202,20 @@ function buildSavedDocumentWhatsAppText(saved) {
   const isSale = saved.tipo === 'venda';
   const totals = saved.financeiro || {};
 
-  let text = `*${settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA'}*\n`;
-  text += `*${isSale ? 'VENDA' : 'ORÇAMENTO'} Nº ${saved.numero || saved.id || 'RASCUNHO'}*\n`;
-  text += `${saved.createdAt?.toDate ? formatDateTime(saved.createdAt.toDate()).replace(' ', ' - ') : ''}\n\n`;
-  text += `👤 *Cliente:* ${saved.cliente?.nome || 'Consumidor Final'}\n`;
-  text += `🧑‍💼 *Vendedor:* ${saved.vendedor?.nome || settings.nomeFantasia || 'Não informado'}\n`;
-  text += `-----------------------------------\n`;
-  text += `📦 *ITENS ${isSale ? 'DA VENDA' : 'DO ORÇAMENTO'}:*\n\n`;
-
-  saved.itens.forEach((item, index) => {
-    text += `${index + 1}. ${item.quantidade}x *${item.nome}* (${item.volume}) — *${formatCurrency(item.subtotal || (item.precoUnitario * item.quantidade))}*\n`;
-    text += resumoVarianteWhatsApp(item);
+  // Layout Estilo Cupom/Comprovante (Opção 2).
+  const dataDoc = saved.createdAt?.toDate ? formatDateTime(saved.createdAt.toDate()) : formatDateTime(new Date());
+  let text = cabecalhoWhatsApp({
+    tipo: isSale ? 'VENDA' : 'ORÇAMENTO',
+    numero: saved.numero || saved.id || 'RASCUNHO',
+    cliente: saved.cliente?.nome || 'Consumidor Final',
+    vendedor: saved.vendedor?.nome || settings.nomeFantasia || 'Não informado',
+    data: dataDoc,
+    settings
   });
 
-  text += `-----------------------------------\n`;
-  text += `💵 Subtotal: ${formatCurrency(totals.subtotal || 0)}\n`;
-  text += `🏷️ Desconto: -${formatCurrency(totals.desconto || 0)}\n`;
-  text += `💳 Taxa: +${formatCurrency(totals.valorTaxa || 0)}\n`;
-  text += `💰 *TOTAL GERAL: ${formatCurrency(totals.totalGeral || 0)}*\n`;
-  text += `💳 Forma de Pagamento: ${String(totals.formaPag || 'PIX').toUpperCase()}\n\n`;
+  saved.itens.forEach((item) => { text += blocoItemWhatsApp(item); });
 
-  if (settings.avisoEstoque) text += `⚠️ _${settings.avisoEstoque}_\n\n`;
-  text += `${isSale ? resolveMessageFor('Recibo') : resolveMessageFor('Orcamento')}`;
+  text += rodapeWhatsApp(totals, settings);
   return text;
 }
 
