@@ -51,7 +51,7 @@ function resumoVarianteHtml(item) {
 // ---------------------------------------------------------------------------
 const WA_DIV = '───────────────';
 
-// Converte para Unicode Sans-Serif negrito (ex.: "5 Maçã" → "𝟧 𝖬𝖺ç𝖺").
+// Converte para Unicode Sans-Serif LEVE (ex.: "1 Maçã" → "𝟣 𝖬𝖺𝖼̧𝖺̃").
 // Diacríticos são preservados via decomposição NFD (a base converte).
 function paraSansSerifUnicode(texto) {
   const nfd = String(texto == null ? '' : texto).normalize('NFD');
@@ -59,23 +59,24 @@ function paraSansSerifUnicode(texto) {
   for (const ch of nfd) {
     const c = ch.codePointAt(0);
     let v = null;
-    if (c >= 0x41 && c <= 0x5A) v = 0x1D5A0 + (c - 0x41);
-    else if (c >= 0x61 && c <= 0x7A) v = 0x1D5BA + (c - 0x61);
-    else if (c >= 0x30 && c <= 0x39) v = 0x1D7EC + (c - 0x30);
+    if (c >= 0x41 && c <= 0x5A) v = 0x1D610 + (c - 0x41);
+    else if (c >= 0x61 && c <= 0x7A) v = 0x1D62A + (c - 0x61);
+    else if (c >= 0x30 && c <= 0x39) v = 0x1D7E2 + (c - 0x30);
     out += v !== null ? String.fromCodePoint(v) : ch;
   }
   return out;
 }
 
-// Ícone por categoria de produto (🧴 Detergente, 🌸 Desinfetante, ...).
+// Ícone por categoria de produto (🧴 detergentes, 🌸 desinfetantes e
+// aromatizantes, 🧼 sabonetes).
 function iconeCategoriaProduto(nome) {
   const n = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (n.includes('desinfetante')) return '🌸';
   if (n.includes('detergente')) return '🧴';
+  if (n.includes('aromatizante') || n.includes('desodoriz')) return '🌸';
   if (n.includes('amaciante')) return '👕';
   if (n.includes('cloro') || n.includes('agua sanitaria')) return '🧪';
   if (n.includes('sabao') || n.includes('sabonete')) return '🧼';
-  if (n.includes('aromatizante') || n.includes('desodoriz')) return '🌺';
   if (n.includes('multiuso') || n.includes('multilimp') || n.includes('limpador')) return '🧽';
   return '📦';
 }
@@ -105,13 +106,14 @@ function validadeWhatsAppHoras(settings) {
   return `${dias * 24}h`;
 }
 
-function cabecalhoWhatsApp({ tipo, numero, cliente, vendedor, data, settings }) {
+function cabecalhoWhatsApp({ tipo, numero, cliente, vendedor, data, validade, settings }) {
   let t = `🏢 *${settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA'}*\n`;
   t += `📄 *${tipo} Nº ${numero}*\n`;
   t += `${WA_DIV}\n`;
   t += `👤 *Cliente:* ${cliente}\n`;
   t += `🧑‍💼 *Vendedor:* ${vendedor}\n`;
   t += `📅 *Data:* ${data}\n`;
+  t += `⏳ *Validade:* ${validade}\n`;
   t += `${WA_DIV}\n\n`;
   return t;
 }
@@ -122,7 +124,8 @@ function rodapeWhatsApp(totals, settings) {
   t += `• Desconto: ${formatCurrency(totals.desconto || 0)}\n`;
   t += `💳 **TOTAL: ${formatCurrency(totals.totalGeral || 0)}** (${String(totals.formaPag || 'PIX').toUpperCase()})\n`;
   t += `${WA_DIV}\n\n`;
-  t += `⚠️ _Validade: ${validadeWhatsAppHoras(settings)}. Sujeito à alteração de estoque._`;
+  t += `⚠️ Validade: ${validadeWhatsAppHoras(settings)}. Sujeito à alteração de estoque.\n`;
+  t += `✨ *Agradecemos a preferência!*`;
   return t;
 }
 
@@ -161,6 +164,7 @@ async function sendOrcamentoWhatsApp() {
   const totals = calculateTotals();
 
   const dataHoje = formatDateTime(new Date());
+  const dataValidade = formatDateTime(addDaysToDate(new Date(), settings.prazoValidadeDias || 1)).replace(' ', ' - ');
 
   // Layout Estilo Cupom/Comprovante (Opção 2).
   const isSale = typeof documentMode !== 'undefined' && documentMode === 'pdv';
@@ -170,6 +174,7 @@ async function sendOrcamentoWhatsApp() {
     cliente: clienteNome,
     vendedor: vendedor?.nome || settings.nomeFantasia || 'Não informado',
     data: dataHoje,
+    validade: dataValidade,
     settings
   });
 
@@ -204,12 +209,17 @@ function buildSavedDocumentWhatsAppText(saved) {
 
   // Layout Estilo Cupom/Comprovante (Opção 2).
   const dataDoc = saved.createdAt?.toDate ? formatDateTime(saved.createdAt.toDate()) : formatDateTime(new Date());
+  let validadeDoc = saved.validade || '';
+  if (!validadeDoc && saved.createdAt?.toDate && typeof addDaysToDate === 'function') {
+    try { validadeDoc = formatDateTime(addDaysToDate(saved.createdAt.toDate(), saved.validadeDias || settings.prazoValidadeDias || 1)).replace(' ', ' - '); } catch (e) {}
+  }
   let text = cabecalhoWhatsApp({
     tipo: isSale ? 'VENDA' : 'ORÇAMENTO',
     numero: saved.numero || saved.id || 'RASCUNHO',
     cliente: saved.cliente?.nome || 'Consumidor Final',
     vendedor: saved.vendedor?.nome || settings.nomeFantasia || 'Não informado',
     data: dataDoc,
+    validade: validadeDoc,
     settings
   });
 
