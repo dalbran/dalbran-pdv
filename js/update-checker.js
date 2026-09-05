@@ -46,8 +46,8 @@
 
   // Versão NATIVA instalada — MANTER em sincronia com android/app/build.gradle
   const APP_VERSION = {
-    name: '0.0.17',
-    code: 17
+    name: '0.0.18',
+    code: 18
   };
   window.__APP_VERSION__ = APP_VERSION.name;
   window.__APP_CODE__ = APP_VERSION.code;
@@ -564,6 +564,31 @@
     await writeControl(control);
     await postToSW({ type: 'SET_ACTIVE', state: control });
     diag('Ativação: cache ' + cacheName + ' (anterior: ' + (prevCache || 'embutido') + ').', 'success');
+
+    // 3b. VERIFICAÇÃO PRÉ-COMMIT: confirma que o SW passa a servir a nova
+    // versão ANTES de registrar o estado e reiniciar. Sem isso, um SW que não
+    // controla a página gera loop infinito (aplica → reverte → oferece de novo).
+    setModalStage('activate', 'Verificando ativação...');
+    try {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const probeRes = await fetch(new URL('index.html', window.location.origin).href, { cache: 'no-store' });
+      if (!probeRes.ok) throw new Error('HTTP ' + probeRes.status);
+      const probeText = await probeRes.text();
+      const probeMatch = probeText.match(/window\.__WEB_CODE__\s*=\s*(\d+)/);
+      const probeCode = probeMatch ? Number(probeMatch[1]) : 0;
+      if (probeCode !== newCode) throw new Error('SW serviu code ' + (probeCode || 'desconhecido') + ', esperado ' + newCode);
+      diag('Verificação: SW servindo a versão ' + newVersion + ' (code ' + newCode + ').', 'success');
+    } catch (e) {
+      diag('ATIVAÇÃO FALHOU NA VERIFICAÇÃO: ' + (e.message || 'erro'), 'error');
+      diag('Revertendo o controle e descartando o cache ' + cacheName + '. Nada foi alterado.', 'error');
+      try {
+        await writeControl({ active: prevCache || null, version: '', previous: null });
+        await postToSW({ type: 'REVERT_ACTIVE', cacheName: prevCache || null, version: '' });
+        await caches.delete(cacheName);
+      } catch (e2) {}
+      setModalStatus('Falha ao ativar a versão ' + newVersion + ' (' + (e.message || 'erro') + '). Nada foi alterado — tente "Verificar novamente" ou reinstale o APK.', 'error');
+      return { ok: false, stage: 'ACTIVATION_VERIFY' };
+    }
 
     // 4. Registra a versão local.
     state.prevWebCode = parseInt(state.webCode || 0, 10) || installedBaseWebCode();
