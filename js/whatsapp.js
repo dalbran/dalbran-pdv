@@ -47,75 +47,69 @@ function resumoVarianteHtml(item) {
 }
 
 // ---------------------------------------------------------------------------
-// Layout Estilo Cupom/Comprovante (Opção 2) para WhatsApp.
+// PADRÃO FIXO DALBRAN (cupom fiscal p/ WhatsApp): monoespaçado integral com
+// crases simples, sem emojis, separador ━━, itens numerados, fragrâncias
+// discretas em maiúsculas. Nomes/valores nunca são alterados, só o layout.
 // ---------------------------------------------------------------------------
-const WA_DIV = '───────────────';
+const WA_SEP = '━━━━━━━━━━━━━━━━';
 
-// Linha das variantes em "letra de máquina": nomes REAIS em maiúsculas,
-// sem negrito, em bloco monoespaçado (```) — o texto original não é alterado.
-function textoVariantesMono(item) {
+function maiusculas(texto) {
+  return String(texto == null ? '' : texto).toUpperCase();
+}
+
+// ["7 NEUTRO", ...] com quebra em ~32 col sem cortar palavras.
+function linhasFragranciasPadrao(item, largura) {
   let vars = [];
   try { if (typeof variantesDoItem === 'function') vars = variantesDoItem(item) || []; } catch (e) {}
   if (!vars.length && item && item.fragrancia && item.fragrancia !== 'Padrão')
     vars = [{ nome: item.fragrancia, qtd: item.quantidade || 0 }];
   const parts = vars
     .filter(v => (Number(v.qtd) || 0) > 0)
-    .map(v => `${v.qtd} ${String(v.nome || '').toUpperCase()}`);
-  return parts.length ? '```' + parts.join(' · ') + '```' : '';
+    .map(v => `${v.qtd} ${maiusculas(v.nome)}`);
+  if (!parts.length) return [];
+  const W = largura || 32;
+  const linhas = [];
+  let cur = '';
+  parts.forEach(p => {
+    const cand = cur ? cur + ' · ' + p : p;
+    if (cur && cand.length > W) { linhas.push(cur); cur = p; }
+    else cur = cand;
+  });
+  if (cur) linhas.push(cur);
+  return linhas;
 }
 
-// Ícone por categoria de produto (🧴 detergentes, 🌸 desinfetantes e
-// aromatizantes, 🧼 sabonetes).
-function iconeCategoriaProduto(nome) {
-  const n = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (n.includes('desinfetante')) return '🌸';
-  if (n.includes('detergente')) return '🧴';
-  if (n.includes('aromatizante') || n.includes('desodoriz')) return '🌸';
-  if (n.includes('amaciante')) return '👕';
-  if (n.includes('cloro') || n.includes('agua sanitaria')) return '🧪';
-  if (n.includes('sabao') || n.includes('sabonete')) return '🧼';
-  if (n.includes('multiuso') || n.includes('multilimp') || n.includes('limpador')) return '🧽';
-  return '📦';
-}
-
-// Bloco de um item no padrão Opção 2 (quantidade × unitário = subtotal + variantes).
-function blocoItemWhatsApp(item) {
+function blocoItemPadrao(numero, item) {
   const qtd = Number(item.quantidade) || 0;
-  const unit = formatCurrency(item.precoUnitario || 0);
-  const sub = formatCurrency(item.subtotal || ((item.precoUnitario || 0) * qtd));
-  let t = `🔹 *${item.nome} (${item.volume || ''})*\n`;
-  t += `▫️ ${qtd}un  x  ${unit}  =  **${sub}**\n`;
-  const vars = textoVariantesMono(item);
-  if (vars) t += `   └ ${iconeCategoriaProduto(item.nome)} ${vars}\n`;
-  return t + '\n';
+  const L = [];
+  L.push(`${String(numero).padStart(2, '0')}. ${maiusculas(`${item.nome || 'Item'} ${item.volume || ''}`.trim())}`);
+  L.push(`${qtd} un × ${formatCurrency(item.precoUnitario || 0)} = ${formatCurrency(item.subtotal || ((item.precoUnitario || 0) * qtd))}`);
+  linhasFragranciasPadrao(item).forEach(l => L.push(l));
+  return L;
 }
 
-function validadeWhatsAppHoras(settings) {
-  const dias = Number(settings.prazoValidadeDias) || 1;
-  return `${dias * 24}h`;
-}
-
-function cabecalhoWhatsApp({ tipo, numero, cliente, vendedor, data, validade, settings }) {
-  let t = `🏢 *${settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA'}*\n`;
-  t += `📄 *${tipo} Nº ${numero}*\n`;
-  t += `${WA_DIV}\n`;
-  t += `👤 *Cliente:* ${cliente}\n`;
-  t += `🧑‍💼 *Vendedor:* ${vendedor}\n`;
-  t += `📅 *Data:* ${data}\n`;
-  t += `⏳ *Validade:* ${validade}\n`;
-  t += `${WA_DIV}\n\n`;
-  return t;
-}
-
-function rodapeWhatsApp(totals, settings) {
-  let t = `${WA_DIV}\n📊 **RESUMO**\n`;
-  t += `• Subtotal: ${formatCurrency(totals.subtotal || 0)}\n`;
-  t += `• Desconto: ${formatCurrency(totals.desconto || 0)}\n`;
-  t += `💳 **TOTAL: ${formatCurrency(totals.totalGeral || 0)}** (${String(totals.formaPag || 'PIX').toUpperCase()})\n`;
-  t += `${WA_DIV}\n\n`;
-  t += `⚠️ Validade: ${validadeWhatsAppHoras(settings)}. Sujeito à alteração de estoque.\n`;
-  t += `✨ *Agradecemos a preferência!*`;
-  return t;
+function mensagemPadraoWhatsApp({ tipo, numero, cliente, vendedor, data, validade, itens, totals, empresa }) {
+  const L = [];
+  L.push(maiusculas(empresa || 'DALBRAN DISTRIBUIDORA'));
+  L.push(`${tipo} Nº ${numero}`);
+  L.push(WA_SEP);
+  L.push(`CLIENTE: ${cliente}`);
+  L.push(`VENDEDOR: ${vendedor}`);
+  L.push(`DATA: ${data}`);
+  L.push(`VALIDADE: ${validade}`);
+  L.push(WA_SEP);
+  (itens || []).forEach((item, i) => blocoItemPadrao(i + 1, item).forEach(l => L.push(l)));
+  L.push(WA_SEP);
+  L.push('RESUMO');
+  L.push(`Subtotal: ${formatCurrency(totals.subtotal || 0)}`);
+  L.push(`Desconto: ${formatCurrency(totals.desconto || 0)}`);
+  L.push(`TOTAL: ${formatCurrency(totals.totalGeral || 0)}`);
+  L.push(`Pagamento: ${String(totals.formaPag || 'PIX').toUpperCase()}`);
+  L.push(WA_SEP);
+  L.push('Validade: 24 horas');
+  L.push('Sujeito à disponibilidade de estoque.');
+  L.push('Agradecemos a preferência!');
+  return L.map(l => '`' + l + '`').join('\n');
 }
 
 // Resolve a mensagem a usar para um tipo específico (recibo/orçamento/pedido),
@@ -155,21 +149,19 @@ async function sendOrcamentoWhatsApp() {
   const dataHoje = formatDateTime(new Date());
   const dataValidade = formatDateTime(addDaysToDate(new Date(), settings.prazoValidadeDias || 1)).replace(' ', ' - ');
 
-  // Layout Estilo Cupom/Comprovante (Opção 2).
+  // PADRÃO FIXO DALBRAN (cupom fiscal p/ WhatsApp).
   const isSale = typeof documentMode !== 'undefined' && documentMode === 'pdv';
-  let text = cabecalhoWhatsApp({
+  let text = mensagemPadraoWhatsApp({
     tipo: isSale ? 'VENDA' : 'ORÇAMENTO',
     numero: typeof getQuoteNumber === 'function' ? getQuoteNumber(isSale ? 'VEN' : 'ORC') : 'RASCUNHO',
     cliente: clienteNome,
     vendedor: vendedor?.nome || settings.nomeFantasia || 'Não informado',
     data: dataHoje,
     validade: dataValidade,
-    settings
+    itens: cart,
+    totals,
+    empresa: settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA'
   });
-
-  cart.forEach((item) => { text += blocoItemWhatsApp(item); });
-
-  text += rodapeWhatsApp(totals, settings);
 
   const encodedText = encodeURIComponent(text);
 
@@ -196,25 +188,24 @@ function buildSavedDocumentWhatsAppText(saved) {
   const isSale = saved.tipo === 'venda';
   const totals = saved.financeiro || {};
 
-  // Layout Estilo Cupom/Comprovante (Opção 2).
+  // PADRÃO FIXO DALBRAN (cupom fiscal p/ WhatsApp).
   const dataDoc = saved.createdAt?.toDate ? formatDateTime(saved.createdAt.toDate()) : formatDateTime(new Date());
   let validadeDoc = saved.validade || '';
   if (!validadeDoc && saved.createdAt?.toDate && typeof addDaysToDate === 'function') {
     try { validadeDoc = formatDateTime(addDaysToDate(saved.createdAt.toDate(), saved.validadeDias || settings.prazoValidadeDias || 1)).replace(' ', ' - '); } catch (e) {}
   }
-  let text = cabecalhoWhatsApp({
+  const nomeFantasia = settings.nomeFantasia || 'DALBRAN DISTRIBUIDORA';
+  const text = mensagemPadraoWhatsApp({
     tipo: isSale ? 'VENDA' : 'ORÇAMENTO',
     numero: saved.numero || saved.id || 'RASCUNHO',
     cliente: saved.cliente?.nome || 'Consumidor Final',
-    vendedor: saved.vendedor?.nome || settings.nomeFantasia || 'Não informado',
+    vendedor: saved.vendedor?.nome || nomeFantasia,
     data: dataDoc,
     validade: validadeDoc,
-    settings
+    itens: saved.itens,
+    totals,
+    empresa: nomeFantasia
   });
-
-  saved.itens.forEach((item) => { text += blocoItemWhatsApp(item); });
-
-  text += rodapeWhatsApp(totals, settings);
   return text;
 }
 
