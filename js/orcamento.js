@@ -453,11 +453,7 @@ function getPdvQuickQuantityModal() {
     const product = (window.productsCache || []).find(p => p.id === pdvQuickSelection.productId);
     const selectedVar = product?.variacoes?.[pdvQuickSelection.variationIndex];
 
-    if (selectedVar && selectedVar.fragrancias && selectedVar.fragrancias.length > 0) {
-      renderPdvFragGrid(modal, selectedVar.fragrancias);
-      modal.querySelector('.pdv-quantity-controls').classList.add('hidden');
-      modal.querySelector('.pdv-quantity-instruction').textContent = 'Toque nas fragrâncias e informe as quantidades.';
-    } else {
+    if (!exibirGradeFragModal(modal, selectedVar, null)) {
       modal.querySelector('.pdv-fragrance-options').classList.add('hidden');
       modal.querySelector('.pdv-quantity-instruction').textContent = 'Informe a quantidade de unidades.';
       modal.querySelector('.pdv-quantity-controls').classList.remove('hidden');
@@ -484,7 +480,13 @@ function getPdvQuickQuantityModal() {
       close();
       return;
     }
-    if (gridVisible && fragTotal === 0) { showToast('Informe a quantidade de ao menos uma fragrância.', 'error'); return; }
+    // Grade zerada: no PDV vira item genérico (vale por todas as fragrâncias);
+    // no orçamento a grade continua obrigatória.
+    if (gridVisible && fragTotal === 0) {
+      if (documentMode === 'pdv') { adicionarGenericoDoModal(modal); close(); return; }
+      showToast('Informe a quantidade de ao menos uma fragrância.', 'error');
+      return;
+    }
     const quantity = Math.max(1, parseInt(modal.querySelector('#pdv-quick-quantity-input').value, 10) || 1);
     const quantityInput = document.getElementById('orc-input-qtd');
     if (quantityInput) quantityInput.value = quantity;
@@ -504,7 +506,10 @@ function gradeFragHTML(fragrancias, preset) {
       + `<span class="pdv-frag-name">${escapeProductHtml(name)}</span>`
       + `<div class="pdv-frag-stepper"><button type="button" data-frag-dec aria-label="Diminuir">−</button>`
       + `<input data-frag-input type="text" inputmode="numeric" pattern="[0-9]*" value="${qtd}" autocomplete="off">`
-      + `<button type="button" data-frag-inc aria-label="Aumentar">+</button></div></div>`;
+      + `<button type="button" data-frag-inc aria-label="Aumentar">+</button>`
+      + `<button type="button" data-frag-add="1" aria-label="Adicionar 1">+1</button>`
+      + `<button type="button" data-frag-add="5" aria-label="Adicionar 5">+5</button>`
+      + `<button type="button" data-frag-add="10" aria-label="Adicionar 10">+10</button></div></div>`;
   }).join('');
 }
 
@@ -527,34 +532,81 @@ function atualizarTotalGrade(container, map) {
   return total;
 }
 
-// Liga (de forma idempotente) os steppers + digitação da grade.
+// Liga (de forma idempotente) os steppers + digitação + atalhos +1/+5/+10 da grade.
 function ligarEventosGrade(container, map, aoMudar) {
   if (!container) return;
-  container.onclick = event => {
-    const btn = event.target.closest('[data-frag-inc],[data-frag-dec]');
-    if (!btn) return;
-    const row = event.target.closest('[data-frag-name]');
+  const lerLinha = (scope) => {
+    const row = scope.closest ? scope.closest('[data-frag-name]') : null;
     const input = row ? row.querySelector('[data-frag-input]') : null;
-    if (!input || !row) return;
-    const delta = btn.hasAttribute('data-frag-inc') ? 1 : -1;
-    input.value = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
-    map[row.dataset.fragName] = Number(input.value) || 0;
-    atualizarTotalGrade(container, map);
-    if (typeof aoMudar === 'function') aoMudar();
+    return { row, input };
   };
-  container.oninput = event => {
-    const input = event.target.closest('[data-frag-input]');
-    if (!input) return;
-    const row = event.target.closest('[data-frag-name]');
-    if (!row) return;
+  const gravar = (row, input) => {
     input.value = String(Math.max(0, parseInt(input.value, 10) || 0));
     map[row.dataset.fragName] = Number(input.value) || 0;
     atualizarTotalGrade(container, map);
     if (typeof aoMudar === 'function') aoMudar();
   };
+  container.onclick = event => {
+    const step = event.target.closest('[data-frag-inc],[data-frag-dec]');
+    const quick = event.target.closest('[data-frag-add]');
+    if (!step && !quick) return;
+    const { row, input } = lerLinha(event.target);
+    if (!row || !input) return;
+    const delta = step
+      ? (step.hasAttribute('data-frag-inc') ? 1 : -1)
+      : (Number(quick.dataset.fragAdd) || 0);
+    input.value = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
+    gravar(row, input);
+  };
+  container.oninput = event => {
+    const input = event.target.closest('[data-frag-input]');
+    if (!input) return;
+    const { row } = lerLinha(event.target);
+    if (!row) return;
+    gravar(row, input);
+  };
 }
 
-// Desenha a grade multi-fragrâncias com steppers. `preset` = { nome: qtd } (edição).
+// Exibe a grade da variação no modal. No PDV a quantidade genérica continua
+// visível junto (fragrância opcional: grade zerada = item genérico = todas).
+// No orçamento a grade é obrigatória.
+function exibirGradeFragModal(modal, selectedVar, preset) {
+  if (!(selectedVar && selectedVar.fragrancias && selectedVar.fragrancias.length > 0)) return false;
+  renderPdvFragGrid(modal, selectedVar.fragrancias, preset);
+  const controls = modal.querySelector('.pdv-quantity-controls');
+  if (documentMode === 'pdv') {
+    controls.classList.remove('hidden');
+    modal.querySelector('.pdv-quantity-instruction').textContent = 'Toque nas fragrâncias para detalhar, ou informe a quantidade genérica (vale por todas).';
+  } else {
+    controls.classList.add('hidden');
+    modal.querySelector('.pdv-quantity-instruction').textContent = 'Toque nas fragrâncias e informe as quantidades.';
+  }
+  return true;
+}
+
+// Adiciona o item genérico (sem detalhamento = representa todas as variantes).
+function adicionarGenericoDoModal(modal) {
+  const product = (window.productsCache || []).find(p => p.id === pdvQuickSelection.productId);
+  const variacao = product?.variacoes?.[pdvQuickSelection.variationIndex];
+  if (!product || !variacao) return;
+  const tabela = document.getElementById('orc-select-tabela')?.value || 'varejo';
+  const precoUnit = Number(getVariationPrice(variacao, tabela)) || 0;
+  const qtd = Math.max(1, parseInt(modal.querySelector('#pdv-quick-quantity-input').value, 10) || 1);
+  mesclarItemNoCarrinho(cart, {
+    produtoId: product.id,
+    nome: product.nome || product.name || 'Produto sem nome',
+    volume: variacao.volume,
+    fragrancia: 'Padrão',
+    quantidade: qtd,
+    precoUnitario: precoUnit,
+    subtotal: Number((precoUnit * qtd).toFixed(2))
+  });
+  justFinalizedSaleId = null;
+  renderCartTable();
+  markQuoteDirty();
+  updateTotals();
+  showToast('Item adicionado!', 'info');
+}
 function renderPdvFragGrid(modal, fragrancias, preset) {
   const fragContainer = modal.querySelector('.pdv-fragrance-options');
   ligarEventosGrade(fragContainer, pdvQuickSelection.fragrances, () => atualizarPdvFragTotal(modal));
@@ -663,11 +715,8 @@ function openPdvQuickQuantityModal(productId, editIndex) {
   modal.querySelector('#pdv-quick-quantity-input').value = editing ? (editing.quantidade || 1) : 1;
 
   const showFragFor = (selectedVar) => {
-    if (selectedVar && selectedVar.fragrancias && selectedVar.fragrancias.length > 0) {
-      renderPdvFragGrid(modal, selectedVar.fragrancias, preset);
-      controls.classList.add('hidden');
+    if (exibirGradeFragModal(modal, selectedVar, preset)) {
       modal.querySelector('.pdv-volume-options').classList.add('hidden');
-      modal.querySelector('.pdv-quantity-instruction').textContent = 'Toque nas fragrâncias e informe as quantidades.';
       return true;
     }
     return false;
@@ -2502,13 +2551,16 @@ function bindOrcamentoEvents() {
         return;
       }
 
+      // Grade zerada no PDV = item genérico (vale por todas; ignora o select simples).
+      const fragranciaFinal = (formFragVisivel() && documentMode === 'pdv') ? 'Padrão' : (fragrancia || 'Padrão');
+
       // Agrupa automaticamente por produto+volume+preço (mesma configuração
       // soma na mesma linha, inclusive somando o detalhamento de variantes).
       mesclarItemNoCarrinho(cart, {
         produtoId: product.id,
         nome: product.nome || product.name || 'Produto sem nome',
         volume: variacao.volume,
-        fragrancia: fragrancia || 'Padrão',
+        fragrancia: fragranciaFinal,
         quantidade: qtd,
         precoUnitario: precoUnit,
         subtotal: qtd * precoUnit
